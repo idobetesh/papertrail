@@ -13,8 +13,8 @@
   <a href="https://github.com/idobetesh/papertrail/actions/workflows/ci.yml"><img src="https://github.com/idobetesh/papertrail/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
   <a href="https://github.com/idobetesh/papertrail/actions/workflows/deploy.yml"><img src="https://github.com/idobetesh/papertrail/actions/workflows/deploy.yml/badge.svg" alt="Deploy"></a>
   <br>
-  <img src="https://img.shields.io/endpoint?url=https://webhook-handler-gm27rejjwa-uc.a.run.app/health&query=$.version&label=version&color=blue&style=flat-square&cacheSeconds=60" alt="Version">
-  <img src="https://img.shields.io/endpoint?url=https://webhook-handler-gm27rejjwa-uc.a.run.app/health&query=$.status&label=status&color=brightgreen&style=flat-square&cacheSeconds=60" alt="Status">
+  <img src="https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fwebhook-handler-gm27rejjwa-uc.a.run.app%2Fhealth&query=%24.version&label=version&color=blue&style=flat-square" alt="Version">
+  <img src="https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fwebhook-handler-gm27rejjwa-uc.a.run.app%2Fhealth&query=%24.status&label=status&color=brightgreen&style=flat-square" alt="Status">
 </p>
 
 ## Features
