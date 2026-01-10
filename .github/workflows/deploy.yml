@@ -3,7 +3,14 @@ name: Deploy
 on:
   push:
     branches: [master]
-  workflow_dispatch: # Manual trigger
+    paths:
+      - 'services/**'
+      - 'shared/**'
+      - 'infra/**'
+      - 'package.json'
+      - 'package-lock.json'
+      - '.github/workflows/deploy.yml'
+  workflow_dispatch: # Manual trigger (bypasses path filter)
 
 env:
   PROJECT_ID: papertrail-invoice
