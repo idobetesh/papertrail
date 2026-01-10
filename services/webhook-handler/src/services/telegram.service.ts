@@ -45,17 +45,27 @@ const TelegramMessageSchema = z.object({
   caption: z.string().optional(),
 });
 
+const TelegramCallbackQuerySchema = z.object({
+  id: z.string(),
+  from: TelegramUserSchema,
+  message: TelegramMessageSchema.optional(),
+  chat_instance: z.string(),
+  data: z.string().optional(),
+});
+
 const TelegramUpdateSchema = z.object({
   update_id: z.number(),
   message: TelegramMessageSchema.optional(),
   edited_message: TelegramMessageSchema.optional(),
   channel_post: TelegramMessageSchema.optional(),
   edited_channel_post: TelegramMessageSchema.optional(),
+  callback_query: TelegramCallbackQuerySchema.optional(),
 });
 
 export type TelegramUpdate = z.infer<typeof TelegramUpdateSchema>;
 export type TelegramMessage = z.infer<typeof TelegramMessageSchema>;
 export type TelegramPhotoSize = z.infer<typeof TelegramPhotoSizeSchema>;
+export type TelegramCallbackQuery = z.infer<typeof TelegramCallbackQuerySchema>;
 
 /**
  * Validate and parse a Telegram update
@@ -134,4 +144,33 @@ export function extractTaskPayload(update: TelegramUpdate): TaskPayload | null {
  */
 export function isValidUpdate(update: unknown): update is TelegramUpdate {
   return parseUpdate(update) !== null;
+}
+
+/**
+ * Check if the update is a callback query (button press)
+ */
+export function isCallbackQuery(update: TelegramUpdate): boolean {
+  return Boolean(update.callback_query);
+}
+
+/**
+ * Extract callback query payload for forwarding to worker
+ */
+export function extractCallbackPayload(update: TelegramUpdate): {
+  callbackQueryId: string;
+  data: string;
+  botMessageChatId: number;
+  botMessageId: number;
+} | null {
+  const callback = update.callback_query;
+  if (!callback || !callback.data || !callback.message) {
+    return null;
+  }
+
+  return {
+    callbackQueryId: callback.id,
+    data: callback.data,
+    botMessageChatId: callback.message.chat.id,
+    botMessageId: callback.message.message_id,
+  };
 }
