@@ -121,12 +121,16 @@ export async function notifyFailure(req: Request, res: Response): Promise<void> 
  * Used for duplicate invoice decisions
  */
 export async function handleCallback(req: Request, res: Response): Promise<void> {
-  const { callbackQueryId, data, botMessageId } = req.body as {
+  const body = req.body as {
     callbackQueryId: string;
     data: string;
     botMessageChatId: number;
     botMessageId: number;
   };
+  
+  const { callbackQueryId, data, botMessageChatId, botMessageId } = body;
+
+  logger.info({ receivedBody: JSON.stringify(body) }, 'Callback request received');
 
   if (!callbackQueryId || !data) {
     res.status(400).json({ error: 'Missing callback data' });
@@ -134,7 +138,7 @@ export async function handleCallback(req: Request, res: Response): Promise<void>
   }
 
   const log = logger.child({ callbackQueryId });
-  log.info({ data }, 'Processing callback query');
+  log.info({ data, botMessageChatId, botMessageId }, 'Processing callback query');
 
   try {
     // Parse callback data (contains DuplicateDecision)
