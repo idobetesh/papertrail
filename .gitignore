@@ -1,0 +1,56 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+
+# Environment files
+.env
+.env.local
+.env.*.local
+*.env
+
+# Terraform
+infra/terraform/*.tfstate
+infra/terraform/*.tfstate.*
+infra/terraform/*.tfvars
+!infra/terraform/*.tfvars.example
+infra/terraform/.terraform/
+infra/terraform/.terraform.lock.hcl
+infra/terraform/crash.log
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Husky
+.husky/_
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*
+
+# Coverage
+coverage/
+
+# Temp files
+*.tmp
+*.temp
+
+# Credentials (should never be committed)
+*.pem
+*.key
+*.json
+!package.json
+!package-lock.json
+!tsconfig.json
+!jest.config.js
+*-credentials.json
+service-account*.json
+secrets/

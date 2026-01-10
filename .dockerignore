@@ -1,0 +1,43 @@
+# Secrets and credentials
+secrets/
+*.env
+.env*
+**/.env
+**/.env.*
+infra/terraform/terraform.tfvars
+infra/terraform/*.tfstate*
+infra/terraform/.terraform/
+
+# Node modules (reinstalled in container)
+node_modules/
+**/node_modules/
+
+# Build artifacts
+dist/
+**/dist/
+
+# Git
+.git/
+.gitignore
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*
+
+# Test coverage
+coverage/
+
+# Documentation (not needed in prod)
+docs/
+*.md
+!README.md

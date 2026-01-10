@@ -1,0 +1,36 @@
+{
+  "name": "papertrail",
+  "version": "1.0.0",
+  "description": "Serverless Telegram invoice processing bot",
+  "private": true,
+  "scripts": {
+    "prepare": "husky",
+    "lint": "npm run lint:webhook && npm run lint:worker",
+    "lint:webhook": "cd services/webhook-handler && npm run lint",
+    "lint:worker": "cd services/worker && npm run lint",
+    "lint:fix": "npm run lint:fix:webhook && npm run lint:fix:worker",
+    "lint:fix:webhook": "cd services/webhook-handler && npm run lint:fix",
+    "lint:fix:worker": "cd services/worker && npm run lint:fix",
+    "build": "npm run build:webhook && npm run build:worker",
+    "build:webhook": "cd services/webhook-handler && npm run build",
+    "build:worker": "cd services/worker && npm run build",
+    "clean": "rm -rf services/webhook-handler/dist services/worker/dist"
+  },
+  "lint-staged": {
+    "services/webhook-handler/**/*.ts": ["eslint --fix", "prettier --write"],
+    "services/worker/**/*.ts": ["eslint --fix", "prettier --write"],
+    "shared/**/*.ts": ["eslint --fix", "prettier --write"]
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.0.0",
+    "@typescript-eslint/eslint-plugin": "^7.0.0",
+    "@typescript-eslint/parser": "^7.0.0",
+    "eslint": "^8.57.0",
+    "husky": "^9.0.0",
+    "lint-staged": "^15.2.0",
+    "prettier": "^3.2.0"
+  },
+  "engines": {
+    "node": ">=24.0.0"
+  }
+}
