@@ -32,6 +32,13 @@ export async function handleWebhook(req: Request, res: Response): Promise<void> 
 
   logger.info({ updateId: update.update_id }, 'Received Telegram update');
 
+  // Handle callback queries (button presses)
+  if (telegramService.isCallbackQuery(update)) {
+    logger.info('Processing callback query');
+    await handleCallbackQuery(update, config, res);
+    return;
+  }
+
   // Ignore commands for now (could add /status, /help later)
   if (telegramService.isCommand(update)) {
     logger.debug('Ignoring command message');
@@ -71,5 +78,56 @@ export async function handleWebhook(req: Request, res: Response): Promise<void> 
   } catch (error) {
     logger.error({ error }, 'Failed to enqueue task');
     res.status(500).json({ error: 'Failed to enqueue task' });
+  }
+}
+
+/**
+ * Handle callback query by forwarding to worker
+ */
+async function handleCallbackQuery(
+  update: ReturnType<typeof telegramService.parseUpdate>,
+  config: ReturnType<typeof getConfig>,
+  res: Response
+): Promise<void> {
+  if (!update) {
+    res.status(400).json({ error: 'Invalid update' });
+    return;
+  }
+
+  const callbackPayload = telegramService.extractCallbackPayload(update);
+  if (!callbackPayload) {
+    logger.error('Failed to extract callback payload');
+    res.status(400).json({ error: 'Failed to extract callback payload' });
+    return;
+  }
+
+  logger.info(
+    { callbackQueryId: callbackPayload.callbackQueryId },
+    'Forwarding callback query to worker'
+  );
+
+  try {
+    // Forward to worker directly (callbacks need immediate response)
+    const workerUrl = `${config.workerUrl}/callback`;
+    const response = await fetch(workerUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(callbackPayload),
+    });
+
+    const result = await response.json();
+    
+    if (response.ok) {
+      logger.info('Callback processed successfully');
+      res.status(200).json({ ok: true, action: 'callback_processed', result });
+    } else {
+      logger.error({ result }, 'Worker failed to process callback');
+      res.status(200).json({ ok: false, action: 'callback_failed', result });
+    }
+  } catch (error) {
+    logger.error({ error }, 'Failed to forward callback to worker');
+    res.status(500).json({ error: 'Failed to forward callback' });
   }
 }
