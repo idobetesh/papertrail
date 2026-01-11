@@ -1,5 +1,10 @@
 # Worker Service Dockerfile
 # Built from project root: docker build -f services/worker/Dockerfile .
+#
+# Build cache optimization:
+# - Package files copied first for dependency layer caching
+# - BuildKit cache mounts for npm cache
+# - Multi-stage build to minimize final image size
 
 FROM node:24-slim AS builder
 
@@ -8,40 +13,67 @@ ARG APP_VERSION=development
 
 WORKDIR /app
 
-# Copy shared types first
-COPY shared/ ./shared/
+# === LAYER 1: Package files (changes infrequently) ===
+# Copy only package files first to maximize cache hits
+COPY services/worker/package.json services/worker/package-lock.json ./services/worker/
 
-# Copy service files
-COPY services/worker/package*.json ./services/worker/
 WORKDIR /app/services/worker
 
-# Install all dependencies
-RUN npm ci
+# Install dependencies with cache mount for faster rebuilds
+# The cache mount persists npm cache between builds
+RUN --mount=type=cache,target=/root/.npm \
+    npm ci --prefer-offline --no-audit
 
-# Copy service source
-COPY services/worker/ ./
+# === LAYER 2: Shared types (changes occasionally) ===
+WORKDIR /app
+COPY shared/ ./shared/
+
+# === LAYER 3: Service source code (changes frequently) ===
+WORKDIR /app/services/worker
+COPY services/worker/src ./src
+COPY services/worker/tsconfig.json ./
 
 # Build TypeScript
 RUN npm run build
 
-# Production stage
+# ============================================================================
+# Production stage - minimal runtime image
+# ============================================================================
 FROM node:24-slim
 
 ARG APP_VERSION=development
 
+# Add security: run as non-root user
+RUN groupadd -r nodejs && useradd -r -g nodejs nodejs
+
 WORKDIR /app
 
-# Copy built application (dist contains the compiled JS including shared)
-COPY --from=builder /app/services/worker/dist ./dist
-COPY --from=builder /app/services/worker/package*.json ./
+# Copy package files
+COPY --from=builder /app/services/worker/package.json \
+                    /app/services/worker/package-lock.json ./
 
-# Install production dependencies only
-RUN npm ci --only=production
+# Install production dependencies only with cache mount
+RUN --mount=type=cache,target=/root/.npm \
+    npm ci --only=production --prefer-offline --no-audit && \
+    npm cache clean --force
+
+# Copy built application
+COPY --from=builder /app/services/worker/dist ./dist
+
+# Change ownership to non-root user
+RUN chown -R nodejs:nodejs /app
+
+# Switch to non-root user
+USER nodejs
 
 # Set environment
-ENV NODE_ENV=production
-ENV PORT=8080
-ENV APP_VERSION=${APP_VERSION}
+ENV NODE_ENV=production \
+    PORT=8080 \
+    APP_VERSION=${APP_VERSION}
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
+    CMD node -e "require('http').get('http://localhost:8080/health', (r) => { process.exit(r.statusCode === 200 ? 0 : 1); })"
 
 # Expose port
 EXPOSE 8080
