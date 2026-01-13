@@ -54,3 +54,5 @@ coverage/
 *-credentials.json
 service-account*.json
 secrets/
+
+future
