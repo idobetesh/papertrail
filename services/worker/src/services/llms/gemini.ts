@@ -120,7 +120,104 @@ export async function extractInvoiceData(
   }
 }
 
+/**
+ * Extract invoice data from multiple images (for multi-page PDFs)
+ * Sends all images to Gemini in a single request
+ */
+export async function extractInvoiceDataMulti(
+  imageBuffers: Buffer[],
+  fileExtension: string
+): Promise<ExtractionResult> {
+  const genAI = getClient();
+  const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
+  const mimeType = getMimeType(fileExtension);
+
+  logger.debug({ imageCount: imageBuffers.length }, 'Sending multiple images to Gemini');
+  const startTime = Date.now();
+
+  try {
+    // Build prompt with all images
+    const promptParts: Array<string | { inlineData: { mimeType: string; data: string } }> = [
+      INVOICE_EXTRACTION_PROMPT,
+    ];
+
+    // Add all images
+    for (const buffer of imageBuffers) {
+      promptParts.push({
+        inlineData: {
+          mimeType,
+          data: buffer.toString('base64'),
+        },
+      });
+    }
+
+    promptParts.push(EXTRACTION_USER_PROMPT);
+
+    const result = await model.generateContent(promptParts);
+
+    const duration = Date.now() - startTime;
+    const response = result.response;
+
+    // Extract token usage
+    const usageMetadata = response.usageMetadata;
+    const inputTokens = usageMetadata?.promptTokenCount || 0;
+    const outputTokens = usageMetadata?.candidatesTokenCount || 0;
+    const totalTokens = inputTokens + outputTokens;
+    const costUSD = calculateCost(inputTokens, outputTokens);
+
+    const usage: LLMUsage = {
+      provider: 'gemini',
+      inputTokens,
+      outputTokens,
+      totalTokens,
+      costUSD,
+    };
+
+    logger.info(
+      { provider: 'gemini', imageCount: imageBuffers.length, durationMs: duration, totalTokens, costUSD: costUSD.toFixed(6) },
+      'Gemini multi-image extraction completed'
+    );
+
+    const text = response.text();
+
+    if (!text) {
+      throw new Error('No response from Gemini');
+    }
+
+    // Gemini sometimes wraps JSON in markdown code blocks
+    const jsonText = text.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+    const parsed = JSON.parse(jsonText) as InvoiceExtraction;
+
+    return {
+      extraction: normalizeExtraction(parsed),
+      usage,
+    };
+  } catch (error) {
+    // Handle specific Gemini errors
+    if (error instanceof GoogleGenerativeAIResponseError) {
+      const message = error.message.toLowerCase();
+      if (message.includes('429') || message.includes('quota') || message.includes('rate')) {
+        throw new RateLimitError('Gemini rate limit exceeded', 'gemini');
+      }
+      if (message.includes('401') || message.includes('api key') || message.includes('unauthorized')) {
+        throw new AuthError('Gemini authentication failed', 'gemini');
+      }
+    }
+
+    // Check for HTTP 429 in error response
+    if (error instanceof Error) {
+      const msg = error.message.toLowerCase();
+      if (msg.includes('429') || msg.includes('resource exhausted') || msg.includes('quota')) {
+        throw new RateLimitError('Gemini rate limit exceeded', 'gemini');
+      }
+    }
+
+    throw error;
+  }
+}
+
 export const provider = {
   name: 'gemini',
   extractInvoiceData,
+  extractInvoiceDataMulti,
 };

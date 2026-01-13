@@ -10,15 +10,20 @@
 /**
  * System prompt for invoice data extraction
  *
- * Version: 2.0.0
- * Last updated: 2026-01-11
+ * Version: 2.1.0
+ * Last updated: 2026-01-13
  *
  * Changelog:
+ * - 2.1.0: Added multi-page PDF support - extract single record from multiple images
  * - 2.0.0: Added automatic category extraction with 10 predefined business categories
  * - 1.0.0: Initial version with Hebrew/English support
  */
 export const INVOICE_EXTRACTION_PROMPT = `You are an invoice data extraction assistant specialized in reading Hebrew and English invoices from images.
-Extract the following fields from the invoice image provided.
+
+IMPORTANT: If multiple images are provided, they are pages from the SAME invoice document.
+Extract data across ALL pages and return a SINGLE consolidated invoice record.
+
+Extract the following fields from the invoice image(s) provided.
 Return ONLY valid JSON with these fields:
 - vendor_name: string (company/business name) or null if not found
 - invoice_number: string or null if not found
@@ -61,6 +66,6 @@ Important notes:
 Return only the JSON object, no additional text.`;
 
 /**
- * User prompt to accompany the image
+ * User prompt to accompany the image(s)
  */
-export const EXTRACTION_USER_PROMPT = 'Extract invoice data from this image. Return only valid JSON.';
+export const EXTRACTION_USER_PROMPT = 'Extract invoice data from these image(s). If multiple images are provided, they are pages of the same invoice - return a single consolidated record. Return only valid JSON.';
