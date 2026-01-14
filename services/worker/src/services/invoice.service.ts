@@ -1,10 +1,15 @@
 /**
  * Invoice processing service - main pipeline orchestrator
- * 
+ *
  * Pipeline: Telegram → Cloud Storage → LLM Vision → Sheets → ACK
  */
 
-import type { TaskPayload, PipelineStep, DuplicateAction, InvoiceJob } from '../../../../shared/types';
+import type {
+  TaskPayload,
+  PipelineStep,
+  DuplicateAction,
+  InvoiceJob,
+} from '../../../../shared/types';
 import * as storeService from './store.service';
 import * as telegramService from './telegram.service';
 import * as storageService from './storage.service';
@@ -29,7 +34,7 @@ export interface ProcessingResult {
 export async function processInvoice(payload: TaskPayload): Promise<ProcessingResult> {
   const { chatId, messageId, fileId, uploaderUsername, chatTitle, receivedAt } = payload;
   let currentStep: PipelineStep = 'download';
-  let driveFileIds: string[] = []; // Track multiple files for PDF rollback
+  const driveFileIds: string[] = []; // Track files for rollback
   let driveLink: string | undefined;
 
   const log = logger.child({ chatId, messageId });
@@ -68,13 +73,18 @@ export async function processInvoice(payload: TaskPayload): Promise<ProcessingRe
     const MAX_SIZE_MB = 5;
     const MAX_SIZE_BYTES = MAX_SIZE_MB * 1024 * 1024;
     if (buffer.length > MAX_SIZE_BYTES) {
-      throw new Error(`File size ${(buffer.length / 1024 / 1024).toFixed(2)}MB exceeds ${MAX_SIZE_MB}MB limit`);
+      throw new Error(
+        `File size ${(buffer.length / 1024 / 1024).toFixed(2)}MB exceeds ${MAX_SIZE_MB}MB limit`
+      );
     }
 
     // Detect if PDF and process accordingly
     const isPDF = fileExtension.toLowerCase() === 'pdf';
     let imageBuffers: Buffer[];
     let imageExtension: string;
+
+    // Track original PDF buffer for storage (only the original PDF is stored, not converted images)
+    let originalPdfBuffer: Buffer | undefined;
 
     if (isPDF) {
       // PDF Processing Path
@@ -105,11 +115,19 @@ export async function processInvoice(payload: TaskPayload): Promise<ProcessingRe
           `📄 PDF has ${pdfInfo.pageCount} pages. Maximum is 5 pages. Please split the document.`,
           { replyToMessageId: messageId }
         );
-        await storeService.markJobFailed(chatId, messageId, currentStep, 'PDF exceeds 5 page limit');
+        await storeService.markJobFailed(
+          chatId,
+          messageId,
+          currentStep,
+          'PDF exceeds 5 page limit'
+        );
         return { success: false, alreadyProcessed: false };
       }
 
       log.info({ pageCount: pdfInfo.pageCount }, 'Converting PDF pages to images');
+
+      // Store original PDF for upload
+      originalPdfBuffer = buffer;
 
       // Convert all pages to images
       const convertedPages = await pdfService.convertPDFToImages(buffer, pdfInfo.pageCount);
@@ -129,46 +147,53 @@ export async function processInvoice(payload: TaskPayload): Promise<ProcessingRe
     log.info('Step 2: Uploading to Cloud Storage');
     await storeService.updateJobStep(chatId, messageId, currentStep);
 
-    // Upload all images (one for photos, multiple for PDFs)
-    const uploadPromises = imageBuffers.map(async (imgBuffer, index) => {
-      const filenameSuffix = isPDF ? `page_${index + 1}_of_${imageBuffers.length}` : undefined;
-
-      return storageService.uploadInvoiceImage(
-        imgBuffer,
+    if (originalPdfBuffer) {
+      // For PDFs: upload only the original PDF (images are just for LLM extraction)
+      const pdfUpload = await storageService.uploadInvoiceImage(
+        originalPdfBuffer,
+        'pdf',
+        chatId,
+        messageId,
+        receivedAt
+      );
+      driveFileIds.push(pdfUpload.fileId);
+      driveLink = pdfUpload.webViewLink;
+      log.info({ driveLink }, 'Original PDF uploaded');
+    } else {
+      // For images: upload the image directly
+      const imageUpload = await storageService.uploadInvoiceImage(
+        imageBuffers[0],
         imageExtension,
         chatId,
         messageId,
-        receivedAt,
-        filenameSuffix
+        receivedAt
       );
-    });
-
-    const uploadResults = await Promise.all(uploadPromises);
-    driveFileIds = uploadResults.map((r) => r.fileId);
-
-    // Use first image link as primary drive link
-    driveLink = uploadResults[0].webViewLink;
-
-    log.info({ imageCount: uploadResults.length, driveLink }, 'Uploaded to Cloud Storage');
+      driveFileIds.push(imageUpload.fileId);
+      driveLink = imageUpload.webViewLink;
+      log.info({ driveLink }, 'Image uploaded');
+    }
 
     // Step 3: Extract data with LLM Vision (multi-image for PDFs)
     currentStep = 'llm';
     log.info('Step 3: Extracting with LLM Vision');
-    await storeService.updateJobStep(chatId, messageId, currentStep, { driveFileId: driveFileIds[0], driveLink });
+    await storeService.updateJobStep(chatId, messageId, currentStep, {
+      driveFileId: driveFileIds[0],
+      driveLink,
+    });
 
     // Use multi-image extraction if PDF, single-image for photos
     const { extraction, usage } = isPDF
       ? await llmService.extractInvoiceDataMulti(imageBuffers, imageExtension)
       : await llmService.extractInvoiceData(imageBuffers[0], imageExtension);
     const status = llmService.needsReview(extraction) ? 'needs_review' : 'processed';
-    
+
     log.info(
-      { 
-        vendor: extraction.vendor_name, 
-        total: extraction.total_amount, 
+      {
+        vendor: extraction.vendor_name,
+        total: extraction.total_amount,
         date: extraction.invoice_date,
-        confidence: extraction.confidence, 
-        status, 
+        confidence: extraction.confidence,
+        status,
         tokens: usage.totalTokens,
         cost: usage.costUSD.toFixed(6),
       },
@@ -184,8 +209,11 @@ export async function processInvoice(payload: TaskPayload): Promise<ProcessingRe
 
     // If duplicate found, pause for user decision
     if (duplicate) {
-      log.info({ duplicateJobId: duplicate.jobId }, 'Duplicate detected, waiting for user decision');
-      
+      log.info(
+        { duplicateJobId: duplicate.jobId },
+        'Duplicate detected, waiting for user decision'
+      );
+
       // Store pending decision state with all data needed to resume
       await storeService.markJobPendingDecision(chatId, messageId, {
         duplicateOfJobId: duplicate.jobId,
@@ -265,7 +293,7 @@ export async function processInvoice(payload: TaskPayload): Promise<ProcessingRe
       driveLink
     );
 
-    await telegramService.sendMessage(chatId, ackMessage, { 
+    await telegramService.sendMessage(chatId, ackMessage, {
       parseMode: 'Markdown',
       replyToMessageId: messageId,
       disableWebPagePreview: true,
@@ -335,16 +363,16 @@ export async function handleDuplicateDecision(
   try {
     // Get the pending decision job
     const job = await storeService.getPendingDecisionJob(chatId, messageId);
-    
+
     if (!job) {
       log.warn('No pending decision job found');
       return { success: false, error: 'Decision already processed or expired' };
     }
 
     // Get the duplicate job for its drive link
-    const duplicateJob = job.duplicateOfJobId 
+    const duplicateJob = job.duplicateOfJobId
       ? await storeService.getJob(
-          parseInt(job.duplicateOfJobId.split('_')[0]), 
+          parseInt(job.duplicateOfJobId.split('_')[0]),
           parseInt(job.duplicateOfJobId.split('_')[1])
         )
       : null;
@@ -354,7 +382,7 @@ export async function handleDuplicateDecision(
     if (action === 'delete_new') {
       // User chose to delete the new upload
       log.info('User chose to delete new upload');
-      
+
       // Delete from Cloud Storage
       if (job.driveFileId) {
         await storageService.deleteFile(job.driveFileId);
