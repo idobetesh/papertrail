@@ -83,9 +83,6 @@ export async function processInvoice(payload: TaskPayload): Promise<ProcessingRe
     let imageBuffers: Buffer[];
     let imageExtension: string;
 
-    // Track original PDF buffer for storage (only the original PDF is stored, not converted images)
-    let originalPdfBuffer: Buffer | undefined;
-
     if (isPDF) {
       // PDF Processing Path
       log.info('Processing as PDF document');
@@ -126,9 +123,6 @@ export async function processInvoice(payload: TaskPayload): Promise<ProcessingRe
 
       log.info({ pageCount: pdfInfo.pageCount }, 'Converting PDF pages to images');
 
-      // Store original PDF for upload
-      originalPdfBuffer = buffer;
-
       // Convert all pages to images
       const convertedPages = await pdfService.convertPDFToImages(buffer, pdfInfo.pageCount);
       imageBuffers = convertedPages.map((p) => p.buffer);
@@ -147,10 +141,10 @@ export async function processInvoice(payload: TaskPayload): Promise<ProcessingRe
     log.info('Step 2: Uploading to Cloud Storage');
     await storeService.updateJobStep(chatId, messageId, currentStep);
 
-    if (originalPdfBuffer) {
+    if (isPDF) {
       // For PDFs: upload only the original PDF (images are just for LLM extraction)
       const pdfUpload = await storageService.uploadInvoiceImage(
-        originalPdfBuffer,
+        buffer, // Use original buffer directly
         'pdf',
         chatId,
         messageId,
