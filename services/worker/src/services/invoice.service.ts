@@ -154,7 +154,7 @@ export async function processInvoice(payload: TaskPayload): Promise<ProcessingRe
       driveLink = pdfUpload.webViewLink;
       log.info({ driveLink }, 'Original PDF uploaded');
     } else {
-      // For images: upload the image directly
+      // For images: upload directly since no PDF-to-image conversion is needed
       const imageUpload = await storageService.uploadInvoiceImage(
         imageBuffers[0],
         imageExtension,
