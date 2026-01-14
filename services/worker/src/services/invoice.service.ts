@@ -144,7 +144,7 @@ export async function processInvoice(payload: TaskPayload): Promise<ProcessingRe
     if (isPDF) {
       // For PDFs: upload only the original PDF (images are just for LLM extraction)
       const pdfUpload = await storageService.uploadInvoiceImage(
-        buffer, // Use original buffer directly
+        buffer, // Use raw PDF buffer (not converted images)
         'pdf',
         chatId,
         messageId,
