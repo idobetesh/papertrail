@@ -139,6 +139,8 @@ export interface InvoiceJob {
 // ============================================================================
 
 export interface InvoiceExtraction {
+  is_invoice: boolean; // Whether the document appears to be an invoice/receipt
+  rejection_reason: string | null; // Why the document was rejected (if is_invoice is false)
   vendor_name: string | null;
   invoice_number: string | null;
   invoice_date: string | null; // ISO format YYYY-MM-DD

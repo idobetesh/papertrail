@@ -179,6 +179,39 @@ export async function processInvoice(payload: TaskPayload): Promise<ProcessingRe
     const { extraction, usage } = isPDF
       ? await llmService.extractInvoiceDataMulti(imageBuffers, imageExtension)
       : await llmService.extractInvoiceData(imageBuffers[0], imageExtension);
+
+    // Check if document was rejected (not a valid invoice)
+    if (!extraction.is_invoice) {
+      log.info(
+        { rejectionReason: extraction.rejection_reason, tokens: usage.totalTokens },
+        'Document rejected - not a valid invoice'
+      );
+
+      // Delete uploaded file since it's not an invoice
+      if (driveFileIds.length > 0) {
+        await Promise.all(driveFileIds.map((id) => storageService.deleteFile(id)));
+        log.debug('Deleted uploaded file for rejected document');
+      }
+
+      // Send rejection message to user
+      const rejectionMessage = `❌ *Not an invoice*\n\n${extraction.rejection_reason || 'The uploaded document does not appear to be an invoice or receipt.'}\n\nPlease upload a valid invoice, receipt, or bill.`;
+      await telegramService.sendMessage(chatId, rejectionMessage, {
+        parseMode: 'Markdown',
+        replyToMessageId: messageId,
+      });
+
+      // Mark job as completed (rejected)
+      await storeService.markJobCompleted(chatId, messageId, {
+        driveFileId: '',
+        driveLink: '',
+      });
+
+      return {
+        success: true,
+        alreadyProcessed: false,
+      };
+    }
+
     const status = llmService.needsReview(extraction) ? 'needs_review' : 'processed';
 
     log.info(
@@ -426,6 +459,8 @@ export async function handleDuplicateDecision(
       chatTitle: job.chatTitle,
       driveLink: job.driveLink || '',
       extraction: {
+        is_invoice: true,
+        rejection_reason: null,
         vendor_name: job.vendorName || null,
         invoice_number: jobWithExtraction.invoiceNumber || null,
         invoice_date: job.invoiceDate || null,
