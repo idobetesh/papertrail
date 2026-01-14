@@ -3,8 +3,7 @@
  * 
  * Strategy:
  * 1. Try Gemini (free tier)
- * 2. If 429 rate limit → immediately fallback to OpenAI (no retry)
- * 3. Other errors → throw (Cloud Tasks will retry)
+ * 2. On any error → fallback to OpenAI (paid, reliable)
  */
 
 import type { ExtractionResult, InvoiceExtraction } from './types';
@@ -34,36 +33,49 @@ export async function extractInvoiceData(
     return openai.extractInvoiceData(imageBuffer, fileExtension);
   }
 
-  // Try Gemini first (free tier)
+  // Try Gemini first (free tier), fall back to OpenAI on any error
   try {
     logger.debug('Attempting Gemini extraction');
-    const result = await gemini.extractInvoiceData(imageBuffer, fileExtension);
-    return result;
+    return await gemini.extractInvoiceData(imageBuffer, fileExtension);
   } catch (error) {
-    // Rate limit → immediate fallback, no retry
-    if (error instanceof RateLimitError) {
-      logger.warn(
-        { provider: error.provider },
-        'Rate limit hit, falling back to OpenAI (no retry on 429)'
-      );
-      return openai.extractInvoiceData(imageBuffer, fileExtension);
-    }
+    const errorInfo = error instanceof RateLimitError || error instanceof AuthError
+      ? { provider: error.provider, type: error.constructor.name }
+      : { error: error instanceof Error ? error.message : 'Unknown error' };
 
-    // Auth error → fall back to OpenAI
-    if (error instanceof AuthError) {
-      logger.error(
-        { provider: error.provider },
-        'Auth error, falling back to OpenAI'
-      );
-      return openai.extractInvoiceData(imageBuffer, fileExtension);
-    }
-
-    // Other Gemini errors → try OpenAI as fallback
-    logger.warn(
-      { error: error instanceof Error ? error.message : 'Unknown error' },
-      'Gemini failed, falling back to OpenAI'
-    );
+    logger.warn(errorInfo, 'Gemini failed, falling back to OpenAI');
     return openai.extractInvoiceData(imageBuffer, fileExtension);
+  }
+}
+
+/**
+ * Extract invoice data from multiple images (for multi-page PDFs)
+ * Uses hybrid LLM strategy with fallback
+ * - Primary: Gemini (free)
+ * - Fallback: OpenAI (paid, reliable)
+ */
+export async function extractInvoiceDataMulti(
+  imageBuffers: Buffer[],
+  fileExtension: string
+): Promise<ExtractionResult> {
+  const config = getConfig();
+
+  // If no Gemini key configured, use OpenAI directly
+  if (!config.geminiApiKey) {
+    logger.debug('No Gemini API key, using OpenAI directly');
+    return openai.extractInvoiceDataMulti(imageBuffers, fileExtension);
+  }
+
+  // Try Gemini first (free tier), fall back to OpenAI on any error
+  try {
+    logger.debug('Attempting Gemini multi-image extraction');
+    return await gemini.extractInvoiceDataMulti(imageBuffers, fileExtension);
+  } catch (error) {
+    const errorInfo = error instanceof RateLimitError || error instanceof AuthError
+      ? { provider: error.provider, type: error.constructor.name }
+      : { error: error instanceof Error ? error.message : 'Unknown error' };
+
+    logger.warn(errorInfo, 'Gemini failed, falling back to OpenAI');
+    return openai.extractInvoiceDataMulti(imageBuffers, fileExtension);
   }
 }
 

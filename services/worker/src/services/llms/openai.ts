@@ -123,7 +123,110 @@ export async function extractInvoiceData(
   }
 }
 
+/**
+ * Extract invoice data from multiple images (for multi-page PDFs)
+ * Sends all images to OpenAI in a single request
+ */
+export async function extractInvoiceDataMulti(
+  imageBuffers: Buffer[],
+  fileExtension: string
+): Promise<ExtractionResult> {
+  const openai = getClient();
+  const mimeType = getMimeType(fileExtension);
+
+  logger.debug({ imageCount: imageBuffers.length }, 'Sending multiple images to OpenAI');
+  const startTime = Date.now();
+
+  try {
+    // Build message content with all images using proper OpenAI types
+    type TextPart = { type: 'text'; text: string };
+    type ImagePart = { type: 'image_url'; image_url: { url: string; detail: 'high' | 'low' | 'auto' } };
+    type ContentPart = TextPart | ImagePart;
+
+    const contentParts: ContentPart[] = [
+      {
+        type: 'text',
+        text: 'Extract invoice data from these images (multiple pages of the same invoice):',
+      },
+    ];
+
+    // Add all images
+    for (const buffer of imageBuffers) {
+      const imageUrl = bufferToBase64(buffer, mimeType);
+      contentParts.push({
+        type: 'image_url',
+        image_url: {
+          url: imageUrl,
+          detail: 'high',
+        },
+      });
+    }
+
+    const response = await openai.chat.completions.create({
+      model: 'gpt-4o-mini',
+      messages: [
+        {
+          role: 'system',
+          content: INVOICE_EXTRACTION_PROMPT,
+        },
+        {
+          role: 'user',
+          content: contentParts,
+        },
+      ],
+      response_format: { type: 'json_object' },
+      temperature: 0.1,
+      max_tokens: 500,
+    });
+
+    const duration = Date.now() - startTime;
+
+    const inputTokens = response.usage?.prompt_tokens || 0;
+    const outputTokens = response.usage?.completion_tokens || 0;
+    const totalTokens = inputTokens + outputTokens;
+    const costUSD = calculateCost(inputTokens, outputTokens);
+
+    const usage: LLMUsage = {
+      provider: 'openai',
+      inputTokens,
+      outputTokens,
+      totalTokens,
+      costUSD,
+    };
+
+    logger.info(
+      { provider: 'openai', imageCount: imageBuffers.length, durationMs: duration, totalTokens, costUSD: costUSD.toFixed(6) },
+      'OpenAI multi-image extraction completed'
+    );
+
+    const content = response.choices[0]?.message?.content;
+
+    if (!content) {
+      throw new Error('No response from OpenAI');
+    }
+
+    const parsed = JSON.parse(content) as InvoiceExtraction;
+
+    return {
+      extraction: normalizeExtraction(parsed),
+      usage,
+    };
+  } catch (error) {
+    // Handle specific error types
+    if (error instanceof OpenAI.APIError) {
+      if (error.status === 429) {
+        throw new RateLimitError('OpenAI rate limit exceeded', 'openai');
+      }
+      if (error.status === 401) {
+        throw new AuthError('OpenAI authentication failed', 'openai');
+      }
+    }
+    throw error;
+  }
+}
+
 export const provider = {
   name: 'openai',
   extractInvoiceData,
+  extractInvoiceDataMulti,
 };

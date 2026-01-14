@@ -10,6 +10,7 @@ import * as telegramService from './telegram.service';
 import * as storageService from './storage.service';
 import * as llmService from './llm.service';
 import * as sheetsService from './sheets.service';
+import * as pdfService from './pdf.service';
 import logger from '../logger';
 
 export interface ProcessingResult {
@@ -28,7 +29,7 @@ export interface ProcessingResult {
 export async function processInvoice(payload: TaskPayload): Promise<ProcessingResult> {
   const { chatId, messageId, fileId, uploaderUsername, chatTitle, receivedAt } = payload;
   let currentStep: PipelineStep = 'download';
-  let driveFileId: string | undefined;
+  let driveFileIds: string[] = []; // Track multiple files for PDF rollback
   let driveLink: string | undefined;
 
   const log = logger.child({ chatId, messageId });
@@ -54,37 +55,111 @@ export async function processInvoice(payload: TaskPayload): Promise<ProcessingRe
 
     log.info({ attempt: job?.attempts || 1 }, 'Job claimed');
 
-    // Step 1: Download image from Telegram
+    // Step 1: Download file from Telegram
     currentStep = 'download';
     log.info('Step 1: Downloading from Telegram');
     await storeService.updateJobStep(chatId, messageId, currentStep);
 
-    const { buffer: imageBuffer, filePath } = await telegramService.downloadFileById(fileId);
+    const { buffer, filePath } = await telegramService.downloadFileById(fileId);
     const fileExtension = telegramService.getFileExtension(filePath);
-    log.info({ bytes: imageBuffer.length, extension: fileExtension }, 'Image downloaded');
+    log.info({ bytes: buffer.length, extension: fileExtension }, 'File downloaded');
+
+    // Check file size (re-validate)
+    const MAX_SIZE_MB = 5;
+    const MAX_SIZE_BYTES = MAX_SIZE_MB * 1024 * 1024;
+    if (buffer.length > MAX_SIZE_BYTES) {
+      throw new Error(`File size ${(buffer.length / 1024 / 1024).toFixed(2)}MB exceeds ${MAX_SIZE_MB}MB limit`);
+    }
+
+    // Detect if PDF and process accordingly
+    const isPDF = fileExtension.toLowerCase() === 'pdf';
+    let imageBuffers: Buffer[];
+    let imageExtension: string;
+
+    if (isPDF) {
+      // PDF Processing Path
+      log.info('Processing as PDF document');
+
+      // Check if encrypted
+      const pdfInfo = await pdfService.getPDFInfo(buffer);
+
+      if (pdfInfo.isEncrypted) {
+        log.warn('PDF is password-protected');
+        await telegramService.sendMessage(
+          chatId,
+          '🔒 PDF is password-protected. Please unlock the PDF and resend it.',
+          { replyToMessageId: messageId }
+        );
+        await storeService.markJobFailed(chatId, messageId, currentStep, 'PDF is encrypted');
+        return { success: false, alreadyProcessed: false };
+      }
+
+      if (pdfInfo.pageCount === 0) {
+        throw new Error('PDF has no pages');
+      }
+
+      if (pdfInfo.pageCount > 5) {
+        log.warn({ pageCount: pdfInfo.pageCount }, 'PDF exceeds page limit');
+        await telegramService.sendMessage(
+          chatId,
+          `📄 PDF has ${pdfInfo.pageCount} pages. Maximum is 5 pages. Please split the document.`,
+          { replyToMessageId: messageId }
+        );
+        await storeService.markJobFailed(chatId, messageId, currentStep, 'PDF exceeds 5 page limit');
+        return { success: false, alreadyProcessed: false };
+      }
+
+      log.info({ pageCount: pdfInfo.pageCount }, 'Converting PDF pages to images');
+
+      // Convert all pages to images
+      const convertedPages = await pdfService.convertPDFToImages(buffer, pdfInfo.pageCount);
+      imageBuffers = convertedPages.map((p) => p.buffer);
+      imageExtension = 'png';
+
+      log.info({ pagesConverted: imageBuffers.length }, 'PDF converted to images');
+    } else {
+      // Image Processing Path (existing)
+      log.info('Processing as image');
+      imageBuffers = [buffer];
+      imageExtension = fileExtension;
+    }
 
     // Step 2: Upload to Cloud Storage
     currentStep = 'drive'; // Keep as 'drive' for compatibility with existing jobs
     log.info('Step 2: Uploading to Cloud Storage');
     await storeService.updateJobStep(chatId, messageId, currentStep);
 
-    const storageResult = await storageService.uploadInvoiceImage(
-      imageBuffer,
-      fileExtension,
-      chatId,
-      messageId,
-      receivedAt
-    );
-    driveFileId = storageResult.fileId;
-    driveLink = storageResult.webViewLink;
-    log.info({ fileId: driveFileId, url: driveLink }, 'Uploaded to Cloud Storage');
+    // Upload all images (one for photos, multiple for PDFs)
+    const uploadPromises = imageBuffers.map(async (imgBuffer, index) => {
+      const filenameSuffix = isPDF ? `page_${index + 1}_of_${imageBuffers.length}` : undefined;
 
-    // Step 3: Extract data with LLM Vision
+      return storageService.uploadInvoiceImage(
+        imgBuffer,
+        imageExtension,
+        chatId,
+        messageId,
+        receivedAt,
+        filenameSuffix
+      );
+    });
+
+    const uploadResults = await Promise.all(uploadPromises);
+    driveFileIds = uploadResults.map((r) => r.fileId);
+
+    // Use first image link as primary drive link
+    driveLink = uploadResults[0].webViewLink;
+
+    log.info({ imageCount: uploadResults.length, driveLink }, 'Uploaded to Cloud Storage');
+
+    // Step 3: Extract data with LLM Vision (multi-image for PDFs)
     currentStep = 'llm';
     log.info('Step 3: Extracting with LLM Vision');
-    await storeService.updateJobStep(chatId, messageId, currentStep, { driveFileId, driveLink });
+    await storeService.updateJobStep(chatId, messageId, currentStep, { driveFileId: driveFileIds[0], driveLink });
 
-    const { extraction, usage } = await llmService.extractInvoiceData(imageBuffer, fileExtension);
+    // Use multi-image extraction if PDF, single-image for photos
+    const { extraction, usage } = isPDF
+      ? await llmService.extractInvoiceDataMulti(imageBuffers, imageExtension)
+      : await llmService.extractInvoiceData(imageBuffers[0], imageExtension);
     const status = llmService.needsReview(extraction) ? 'needs_review' : 'processed';
     
     log.info(
@@ -167,13 +242,13 @@ export async function processInvoice(payload: TaskPayload): Promise<ProcessingRe
       sheetRowId = await sheetsService.appendRow(sheetRow);
       log.info({ sheetRowId }, 'Appended to sheet');
     } catch (sheetsError) {
-      // Sheets failed - ROLLBACK: delete uploaded file
-      log.error({ error: sheetsError }, 'Sheets append failed, rolling back upload');
-      
-      if (driveFileId) {
-        await storageService.deleteFile(driveFileId);
+      // Sheets failed - ROLLBACK: delete all uploaded files
+      log.error({ error: sheetsError }, 'Sheets append failed, rolling back uploads');
+
+      if (driveFileIds.length > 0) {
+        await Promise.all(driveFileIds.map((id) => storageService.deleteFile(id)));
       }
-      
+
       // Re-throw to trigger retry
       throw sheetsError;
     }
@@ -199,7 +274,7 @@ export async function processInvoice(payload: TaskPayload): Promise<ProcessingRe
 
     // Mark job as completed
     await storeService.markJobCompleted(chatId, messageId, {
-      driveFileId,
+      driveFileId: driveFileIds[0],
       driveLink,
       sheetRowId,
     });
