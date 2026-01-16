@@ -15,6 +15,31 @@ import { getConfig } from '../config';
 const TELEGRAM_API_BASE = 'https://api.telegram.org';
 
 /**
+ * Helper to POST to Telegram API
+ */
+async function telegramPost<T>(
+  url: string,
+  body: Record<string, unknown>,
+  errorContext: string
+): Promise<T> {
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(body),
+  });
+
+  const data = (await response.json()) as TelegramApiResponse<T>;
+
+  if (!data.ok) {
+    throw new Error(`${errorContext}: ${data.description || 'Unknown error'}`);
+  }
+
+  return data.result as T;
+}
+
+/**
  * Get file info from Telegram
  */
 export async function getFile(fileId: string): Promise<TelegramFile> {
@@ -114,19 +139,7 @@ export async function sendMessage(
     body.reply_markup = options.replyMarkup;
   }
 
-  const response = await fetch(url, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(body),
-  });
-
-  const data = (await response.json()) as TelegramApiResponse<unknown>;
-
-  if (!data.ok) {
-    throw new Error(`Failed to send message: ${data.description || 'Unknown error'}`);
-  }
+  await telegramPost(url, body, 'Failed to send message');
 }
 
 /**
@@ -154,19 +167,7 @@ export async function answerCallbackQuery(
     body.show_alert = options.showAlert;
   }
 
-  const response = await fetch(url, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(body),
-  });
-
-  const data = (await response.json()) as TelegramApiResponse<unknown>;
-
-  if (!data.ok) {
-    throw new Error(`Failed to answer callback: ${data.description || 'Unknown error'}`);
-  }
+  await telegramPost(url, body, 'Failed to answer callback');
 }
 
 /**
@@ -198,19 +199,7 @@ export async function editMessageText(
     body.disable_web_page_preview = options.disableWebPagePreview;
   }
 
-  const response = await fetch(url, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(body),
-  });
-
-  const data = (await response.json()) as TelegramApiResponse<unknown>;
-
-  if (!data.ok) {
-    throw new Error(`Failed to edit message: ${data.description || 'Unknown error'}`);
-  }
+  await telegramPost(url, body, 'Failed to edit message');
 }
 
 /**
