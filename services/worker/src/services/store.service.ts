@@ -3,7 +3,13 @@
  */
 
 import { Firestore, FieldValue, Timestamp } from '@google-cloud/firestore';
-import type { InvoiceJob, JobStatus, PipelineStep, DuplicateMatch, InvoiceExtraction } from '../../../../shared/types';
+import type {
+  InvoiceJob,
+  JobStatus,
+  PipelineStep,
+  DuplicateMatch,
+  InvoiceExtraction,
+} from '../../../../shared/types';
 import logger from '../logger';
 
 const COLLECTION_NAME = 'invoice_jobs';
@@ -63,8 +69,12 @@ export async function claimJob(
         return { claimed: false, job: existingJob };
       }
 
+      // Pending retry - always allow reclaim (Cloud Tasks is retrying)
+      if (existingJob.status === 'pending_retry') {
+        log.info({ attempts: existingJob.attempts }, 'Job pending retry, reclaiming');
+      }
       // Check if stale (processing for too long)
-      if (existingJob.status === 'processing') {
+      else if (existingJob.status === 'processing') {
         const updatedAt = existingJob.updatedAt as Timestamp;
         const timeSinceUpdate = Date.now() - updatedAt.toMillis();
 
@@ -165,7 +175,7 @@ export async function markJobCompleted(
 }
 
 /**
- * Mark job as failed
+ * Mark job as failed (final - no more retries)
  */
 export async function markJobFailed(
   chatId: number,
@@ -186,12 +196,31 @@ export async function markJobFailed(
 }
 
 /**
+ * Mark job as pending retry (transient failure, will be retried)
+ * Keeps job in a state that allows reclaiming on next retry
+ */
+export async function markJobPendingRetry(
+  chatId: number,
+  messageId: number,
+  step: PipelineStep,
+  error: string
+): Promise<void> {
+  const db = getFirestore();
+  const docId = getJobId(chatId, messageId);
+  const docRef = db.collection(COLLECTION_NAME).doc(docId);
+
+  await docRef.update({
+    status: 'pending_retry' as JobStatus,
+    updatedAt: FieldValue.serverTimestamp(),
+    lastStep: step,
+    lastError: error,
+  });
+}
+
+/**
  * Get job by chat and message IDs
  */
-export async function getJob(
-  chatId: number,
-  messageId: number
-): Promise<InvoiceJob | null> {
+export async function getJob(chatId: number, messageId: number): Promise<InvoiceJob | null> {
   const db = getFirestore();
   const docId = getJobId(chatId, messageId);
   const docRef = db.collection(COLLECTION_NAME).doc(docId);
@@ -275,11 +304,11 @@ export async function getPendingDecisionJob(
   messageId: number
 ): Promise<InvoiceJob | null> {
   const job = await getJob(chatId, messageId);
-  
+
   if (!job || job.status !== 'pending_decision') {
     return null;
   }
-  
+
   return job;
 }
 
@@ -303,7 +332,7 @@ export async function findDuplicateInvoice(
   try {
     // Query for processed invoices with same vendor (case-insensitive via lowercase)
     const vendorLower = extraction.vendor_name.toLowerCase().trim();
-    
+
     // Get all processed jobs from last 90 days
     const ninetyDaysAgo = new Date();
     ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
@@ -321,7 +350,7 @@ export async function findDuplicateInvoice(
       }
 
       const job = doc.data() as InvoiceJob & StoredExtraction;
-      
+
       // Skip if no extraction data
       if (!job.vendorName || job.totalAmount === null) {
         continue;
@@ -350,11 +379,11 @@ export async function findDuplicateInvoice(
       }
 
       log.info(
-        { 
-          duplicateJobId: doc.id, 
-          vendor: job.vendorName, 
+        {
+          duplicateJobId: doc.id,
+          vendor: job.vendorName,
           amount: job.totalAmount,
-          matchType 
+          matchType,
         },
         'Potential duplicate found'
       );

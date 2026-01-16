@@ -7,7 +7,12 @@ import { getRetryCount, getMaxRetries } from '../middlewares/cloudTasks';
 import * as invoiceService from '../services/invoice.service';
 import * as storeService from '../services/store.service';
 import logger from '../logger';
-import type { TaskPayload, PipelineStep, DuplicateDecision, DuplicateAction } from '../../../../shared/types';
+import type {
+  TaskPayload,
+  PipelineStep,
+  DuplicateDecision,
+  DuplicateAction,
+} from '../../../../shared/types';
 import * as telegramService from '../services/telegram.service';
 
 /**
@@ -39,7 +44,10 @@ export async function processInvoice(req: Request, res: Response): Promise<void>
     const result = await invoiceService.processInvoice(payload);
 
     if (result.alreadyProcessed) {
-      logger.info({ chatId: payload.chatId, messageId: payload.messageId }, 'Invoice already processed');
+      logger.info(
+        { chatId: payload.chatId, messageId: payload.messageId },
+        'Invoice already processed'
+      );
       res.status(200).json({ ok: true, action: 'already_processed' });
       return;
     }
@@ -51,19 +59,25 @@ export async function processInvoice(req: Request, res: Response): Promise<void>
     res.status(200).json({ ok: true, action: 'processed' });
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-    logger.error({ chatId: payload.chatId, messageId: payload.messageId, error: errorMessage }, 'Processing error');
+    logger.error(
+      { chatId: payload.chatId, messageId: payload.messageId, error: errorMessage },
+      'Processing error'
+    );
 
     // Check if this was the last retry
     if (retryCount >= maxRetries - 1) {
       logger.warn(
-        { chatId: payload.chatId, messageId: payload.messageId },
-        'Max retries reached, sending failure notification'
+        { chatId: payload.chatId, messageId: payload.messageId, retryCount, maxRetries },
+        'Max retries reached, marking as permanently failed'
       );
 
       // Get job to find last step
       const job = await storeService.getJob(payload.chatId, payload.messageId);
       const lastStep: PipelineStep = job?.lastStep || 'download';
       const lastError = job?.lastError || errorMessage;
+
+      // NOW mark as permanently failed (prevents future retries)
+      await storeService.markJobFailed(payload.chatId, payload.messageId, lastStep, lastError);
 
       await invoiceService.sendFailureNotification(
         payload.chatId,
@@ -127,7 +141,7 @@ export async function handleCallback(req: Request, res: Response): Promise<void>
     botMessageChatId: number;
     botMessageId: number;
   };
-  
+
   const { callbackQueryId, data, botMessageChatId, botMessageId } = body;
 
   logger.info({ receivedBody: JSON.stringify(body) }, 'Callback request received');

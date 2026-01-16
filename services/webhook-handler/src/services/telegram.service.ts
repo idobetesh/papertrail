@@ -4,7 +4,12 @@
  */
 
 import { z } from 'zod';
-import type { TaskPayload } from '../../../../shared/types';
+import type {
+  TaskPayload,
+  InvoiceCommandPayload,
+  InvoiceMessagePayload,
+  InvoiceCallbackPayload,
+} from '../../../../shared/types';
 
 /**
  * Zod schemas for Telegram types
@@ -103,6 +108,22 @@ export function isCommand(update: TelegramUpdate): boolean {
 }
 
 /**
+ * Check if the update is an /invoice command
+ */
+export function isInvoiceCommand(update: TelegramUpdate): boolean {
+  const message = update.message || update.channel_post;
+  return Boolean(message?.text?.toLowerCase().startsWith('/invoice'));
+}
+
+/**
+ * Check if the update is a text message (not a command)
+ */
+export function isTextMessage(update: TelegramUpdate): boolean {
+  const message = update.message || update.channel_post;
+  return Boolean(message?.text && !message.text.startsWith('/'));
+}
+
+/**
  * Check if the update contains a document message
  */
 export function isDocumentMessage(update: TelegramUpdate): boolean {
@@ -116,10 +137,14 @@ export function isDocumentMessage(update: TelegramUpdate): boolean {
 export function isPdfDocument(update: TelegramUpdate): boolean {
   const message = update.message || update.channel_post;
   const document = message?.document;
-  if (!document) {return false;}
+  if (!document) {
+    return false;
+  }
 
   // Check MIME type
-  if (document.mime_type === 'application/pdf') {return true;}
+  if (document.mime_type === 'application/pdf') {
+    return true;
+  }
 
   // Fallback: check file extension
   if (document.file_name) {
@@ -173,8 +198,7 @@ export function getBestPhoto(photos: TelegramPhotoSize[]): TelegramPhotoSize {
  * and is processed in parallel by workers. No special handling needed.
  */
 export function extractTaskPayload(update: TelegramUpdate): TaskPayload | null {
-  const message: TelegramMessage | undefined =
-    update.message || update.channel_post;
+  const message: TelegramMessage | undefined = update.message || update.channel_post;
 
   if (!message || !message.photo || message.photo.length === 0) {
     return null;
@@ -184,9 +208,10 @@ export function extractTaskPayload(update: TelegramUpdate): TaskPayload | null {
   const bestPhoto = getBestPhoto(message.photo);
 
   // Build uploader display name: prefer username, fallback to full name
-  const uploaderName = message.from?.username
-    || [message.from?.first_name, message.from?.last_name].filter(Boolean).join(' ')
-    || 'unknown';
+  const uploaderName =
+    message.from?.username ||
+    [message.from?.first_name, message.from?.last_name].filter(Boolean).join(' ') ||
+    'unknown';
 
   return {
     chatId: message.chat.id,
@@ -208,8 +233,7 @@ export function extractTaskPayload(update: TelegramUpdate): TaskPayload | null {
  * and is processed in parallel by workers. No special handling needed.
  */
 export function extractDocumentTaskPayload(update: TelegramUpdate): TaskPayload | null {
-  const message: TelegramMessage | undefined =
-    update.message || update.channel_post;
+  const message: TelegramMessage | undefined = update.message || update.channel_post;
 
   if (!message || !message.document) {
     return null;
@@ -218,9 +242,10 @@ export function extractDocumentTaskPayload(update: TelegramUpdate): TaskPayload 
   const document = message.document;
 
   // Build uploader display name: prefer username, fallback to full name
-  const uploaderName = message.from?.username
-    || [message.from?.first_name, message.from?.last_name].filter(Boolean).join(' ')
-    || 'unknown';
+  const uploaderName =
+    message.from?.username ||
+    [message.from?.first_name, message.from?.last_name].filter(Boolean).join(' ') ||
+    'unknown';
 
   return {
     chatId: message.chat.id,
@@ -268,4 +293,105 @@ export function extractCallbackPayload(update: TelegramUpdate): {
     botMessageChatId: callback.message.chat.id,
     botMessageId: callback.message.message_id,
   };
+}
+
+// ============================================================================
+// Invoice Generation Payloads
+// ============================================================================
+
+/**
+ * Extract invoice command payload for /invoice command
+ */
+export function extractInvoiceCommandPayload(update: TelegramUpdate): InvoiceCommandPayload | null {
+  const message = update.message || update.channel_post;
+
+  if (!message || !message.text || !message.from) {
+    return null;
+  }
+
+  // Build username: prefer username, fallback to full name
+  const username =
+    message.from.username ||
+    [message.from.first_name, message.from.last_name].filter(Boolean).join(' ') ||
+    'unknown';
+
+  return {
+    type: 'command',
+    chatId: message.chat.id,
+    messageId: message.message_id,
+    userId: message.from.id,
+    username,
+    firstName: message.from.first_name || 'Unknown',
+    text: message.text,
+    receivedAt: new Date(message.date * 1000).toISOString(),
+  };
+}
+
+/**
+ * Extract invoice message payload for conversation messages
+ */
+export function extractInvoiceMessagePayload(update: TelegramUpdate): InvoiceMessagePayload | null {
+  const message = update.message || update.channel_post;
+
+  if (!message || !message.text || !message.from) {
+    return null;
+  }
+
+  // Build username: prefer username, fallback to full name
+  const username =
+    message.from.username ||
+    [message.from.first_name, message.from.last_name].filter(Boolean).join(' ') ||
+    'unknown';
+
+  return {
+    type: 'message',
+    chatId: message.chat.id,
+    messageId: message.message_id,
+    userId: message.from.id,
+    username,
+    firstName: message.from.first_name || 'Unknown',
+    text: message.text,
+    receivedAt: new Date(message.date * 1000).toISOString(),
+  };
+}
+
+/**
+ * Extract invoice callback payload for button presses during invoice flow
+ */
+export function extractInvoiceCallbackPayload(
+  update: TelegramUpdate
+): InvoiceCallbackPayload | null {
+  const callback = update.callback_query;
+  if (!callback || !callback.data || !callback.message) {
+    return null;
+  }
+
+  // Build username: prefer username, fallback to full name
+  const username =
+    callback.from.username ||
+    [callback.from.first_name, callback.from.last_name].filter(Boolean).join(' ') ||
+    'unknown';
+
+  return {
+    type: 'callback',
+    callbackQueryId: callback.id,
+    chatId: callback.message.chat.id,
+    messageId: callback.message.message_id,
+    userId: callback.from.id,
+    username,
+    data: callback.data,
+  };
+}
+
+/**
+ * Check if callback is for invoice generation (not duplicate handling)
+ */
+export function isInvoiceCallback(data: string): boolean {
+  try {
+    const parsed = JSON.parse(data);
+    // Invoice callbacks have action like 'select_type', 'select_payment', 'confirm', 'cancel'
+    return ['select_type', 'select_payment', 'confirm', 'cancel'].includes(parsed.action);
+  } catch {
+    return false;
+  }
 }

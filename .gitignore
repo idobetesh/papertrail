@@ -55,4 +55,10 @@ coverage/
 service-account*.json
 secrets/
 
+# Invoice generation config (contains business details)
+services/worker/invoice-config.json
+
+# Business logo (sensitive)
+docs/assets/invoice-logo.jpeg
+
 future
