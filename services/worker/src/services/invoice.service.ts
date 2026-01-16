@@ -183,6 +183,7 @@ export async function processInvoice(payload: TaskPayload): Promise<ProcessingRe
 
     log.info(
       {
+        isInvoice: extraction.is_invoice,
         vendor: extraction.vendor_name,
         total: extraction.total_amount,
         date: extraction.invoice_date,
@@ -193,6 +194,38 @@ export async function processInvoice(payload: TaskPayload): Promise<ProcessingRe
       },
       'LLM Vision extraction completed'
     );
+
+    // Check if document was rejected (not a valid invoice)
+    if (!extraction.is_invoice) {
+      log.info(
+        { rejectionReason: extraction.rejection_reason },
+        'Document rejected - not an invoice'
+      );
+
+      // Delete uploaded file since it's not an invoice
+      if (driveFileIds.length > 0) {
+        try {
+          await Promise.all(driveFileIds.map((id) => storageService.deleteFile(id)));
+          log.info({ fileCount: driveFileIds.length }, 'Deleted non-invoice files from storage');
+        } catch (deleteError) {
+          log.warn({ error: deleteError }, 'Failed to delete non-invoice files');
+        }
+      }
+
+      // Send rejection message to user
+      const rejectionMessage = `❌ *לא זוהה כחשבונית*\n\n${extraction.rejection_reason || 'המסמך לא מכיל מידע של חשבונית'}\n\nאנא העלה חשבונית, קבלה או חשבון תקין.`;
+      await telegramService.sendMessage(chatId, rejectionMessage, {
+        parseMode: 'Markdown',
+        replyToMessageId: messageId,
+      });
+
+      // Mark job as processed (not an error, just not an invoice)
+      await storeService.updateJobStep(chatId, messageId, 'rejected', {
+        rejectionReason: extraction.rejection_reason,
+      });
+
+      return { success: true, alreadyProcessed: false };
+    }
 
     // Store extraction data for future duplicate checks
     await storeService.storeExtraction(chatId, messageId, extraction);
@@ -427,6 +460,8 @@ export async function handleDuplicateDecision(
       chatTitle: job.chatTitle,
       driveLink: job.driveLink || '',
       extraction: {
+        is_invoice: true,
+        rejection_reason: null,
         vendor_name: job.vendorName || null,
         invoice_number: jobWithExtraction.invoiceNumber || null,
         invoice_date: job.invoiceDate || null,
