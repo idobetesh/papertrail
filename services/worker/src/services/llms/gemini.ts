@@ -41,13 +41,7 @@ function calculateCost(inputTokens: number, outputTokens: number): number {
  */
 function getModel() {
   const genAI = getClient();
-  return genAI.getGenerativeModel({
-    model: 'gemini-2.0-flash',
-    generationConfig: {
-      responseMimeType: 'application/json', // Force JSON output
-      temperature: 0.1, // Low temperature to reduce randomness for consistent, deterministic extraction results
-    },
-  });
+  return genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
 }
 
 export async function extractInvoiceData(
