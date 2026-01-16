@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="docs/assets/logo.png" alt="Papertrail" width="200">
+  <img src="docs/assets/logo.png" alt="Papertrail" width="400">
 </p>
 
 <h1 align="center">Papertrail Invoice Bot</h1>
