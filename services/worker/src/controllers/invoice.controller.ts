@@ -228,7 +228,9 @@ export async function handleInvoiceCommand(req: Request, res: Response): Promise
     log.info('Sent document type selection');
     res.status(200).json({ ok: true, action: 'awaiting_type_selection' });
   } catch (error) {
-    log.error({ error }, 'Failed to handle invoice command');
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    const errorStack = error instanceof Error ? error.stack : undefined;
+    log.error({ error: errorMessage, stack: errorStack }, 'Failed to handle invoice command');
     await telegramService.sendMessage(payload.chatId, '❌ שגיאה ביצירת מסמך. נסה שוב מאוחר יותר.');
     res.status(500).json({ error: 'Failed to handle invoice command' });
   }
@@ -291,7 +293,9 @@ export async function handleInvoiceMessage(req: Request, res: Response): Promise
     log.debug({ status: session.status }, 'Ignoring message for session status');
     res.status(200).json({ ok: true, action: 'ignored' });
   } catch (error) {
-    log.error({ error }, 'Failed to handle invoice message');
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    const errorStack = error instanceof Error ? error.stack : undefined;
+    log.error({ error: errorMessage, stack: errorStack }, 'Failed to handle invoice message');
     res.status(500).json({ error: 'Failed to handle invoice message' });
   }
 }
@@ -471,7 +475,9 @@ export async function handleInvoiceCallback(req: Request, res: Response): Promis
         res.status(200).json({ ok: true, action: 'unknown_action' });
     }
   } catch (error) {
-    log.error({ error }, 'Failed to handle invoice callback');
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    const errorStack = error instanceof Error ? error.stack : undefined;
+    log.error({ error: errorMessage, stack: errorStack }, 'Failed to handle invoice callback');
 
     try {
       await telegramService.answerCallbackQuery(payload.callbackQueryId, {
