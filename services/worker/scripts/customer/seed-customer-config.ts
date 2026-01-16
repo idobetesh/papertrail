@@ -3,7 +3,6 @@
  *
  * Usage:
  *   npx ts-node scripts/customer/seed-customer-config.ts <chat_id>
- *   npx ts-node scripts/customer/seed-customer-config.ts -1001234567890
  *
  * The script reads from configs/customer-{chat_id}.json
  * Or falls back to invoice-config.example.json if no specific file exists
@@ -175,7 +174,7 @@ if (!chatIdArg) {
   console.log('');
   console.log('Examples:');
   console.log('  npx ts-node scripts/seed-customer-config.ts 123456789');
-  console.log('  npx ts-node scripts/seed-customer-config.ts -1001234567890');
+  console.log('  npx ts-node scripts/customer/seed-customer-config.ts <chat_id>');
   console.log('');
   console.log('The script reads from:');
   console.log('  1. configs/customer-{chat_id}.json (if exists)');

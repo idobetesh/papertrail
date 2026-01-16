@@ -36,7 +36,7 @@ async function uploadLogo(): Promise<void> {
     console.error('');
     console.error('Examples:');
     console.error('   npx ts-node scripts/upload-logo.ts ./my-logo.png');
-    console.error('   npx ts-node scripts/upload-logo.ts ./my-logo.png -1001234567890');
+    console.error('   npx ts-node scripts/customer/upload-logo.ts ./logo.png <chat_id>');
     process.exit(1);
   }
 
