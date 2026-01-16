@@ -1,62 +1,59 @@
 /**
  * Standalone script to generate a sample invoice PDF
- * Run with: npx ts-node scripts/generate-sample-invoice.ts
+ * Run with: npx ts-node scripts/invoice/generate-sample-invoice.ts
  */
 
 import * as fs from 'fs';
 import * as path from 'path';
 import puppeteer from 'puppeteer-core';
-import { buildInvoiceHTML } from '../src/services/invoice-generator/template';
-import type { InvoiceData, BusinessConfig } from '../../../shared/types';
+import { buildInvoiceHTML } from '../../src/services/invoice-generator/template';
+import type { InvoiceData, BusinessConfig } from '../../../../shared/types';
 
-// Sample business config
+// Demo business config (generic for GitHub)
 const sampleBusinessConfig: BusinessConfig = {
   business: {
-    name: 'צאלה',
-    taxId: '206099137',
-    taxStatus: 'עוסק פטור מס',
-    email: 'tzeelaprojects@gmail.com',
-    phone: '0505777928',
-    address: 'מודיעין',
+    name: 'העסק שלי בע״מ',
+    taxId: '512345678',
+    taxStatus: 'עוסק מורשה',
+    email: 'demo@example.com',
+    phone: '03-1234567',
+    address: 'רחוב הדוגמה 42, תל אביב',
   },
   invoice: {
     digitalSignatureText: 'מסמך ממוחשב חתום דיגיטלית',
-    generatedByText: 'הופק ע"י PaperTrail',
+    generatedByText: 'הופק ע"י Papertrail',
   },
 };
 
-// Sample invoice data
+// Demo invoice data (generic for GitHub)
 const sampleInvoiceData: InvoiceData = {
-  invoiceNumber: '20261',
+  invoiceNumber: '20260001',
   documentType: 'invoice_receipt',
-  customerName: 'אלעד וקורין',
-  customerTaxId: undefined,
-  description: 'אלבום חתונה - צילום ועריכה',
-  amount: 275,
-  paymentMethod: 'ביט',
-  date: '2026-01-14',
+  customerName: 'ישראל ישראלי',
+  customerTaxId: '123456789',
+  description: 'שירותי ייעוץ - ינואר 2026',
+  amount: 1500,
+  paymentMethod: 'העברה',
+  date: '2026-01-15',
 };
 
 async function generateSampleInvoice(): Promise<void> {
   console.log('🔧 Generating sample invoice...\n');
 
-  // Load logo from docs/assets
-  const logoPath = path.join(__dirname, '..', '..', '..', 'docs', 'assets', 'invoice-logo.jpeg');
-  let logoBase64: string | null = null;
-
-  if (fs.existsSync(logoPath)) {
-    const logoBuffer = fs.readFileSync(logoPath);
-    logoBase64 = `data:image/jpeg;base64,${logoBuffer.toString('base64')}`;
-    console.log(`🖼️  Logo loaded: ${logoPath}`);
-  } else {
-    console.log(`⚠️  Logo not found at: ${logoPath}`);
-  }
+  // For the demo sample, we don't include a logo (shows placeholder icon instead)
+  // This keeps real business logos out of the git repo
+  const logoBase64: string | null = null;
+  console.log('🖼️  Using placeholder logo (no custom logo for demo)');
 
   // Build HTML with logo
   const html = buildInvoiceHTML(sampleInvoiceData, sampleBusinessConfig, logoBase64);
 
-  // Save HTML for debugging
-  const htmlPath = path.join(__dirname, 'sample-invoice.html');
+  // Save HTML for debugging (output folder)
+  const outputDir = path.join(__dirname, '..', 'output');
+  if (!fs.existsSync(outputDir)) {
+    fs.mkdirSync(outputDir, { recursive: true });
+  }
+  const htmlPath = path.join(outputDir, 'sample-invoice.html');
   fs.writeFileSync(htmlPath, html);
   console.log(`📄 HTML saved to: ${htmlPath}`);
 
@@ -112,8 +109,8 @@ async function generateSampleInvoice(): Promise<void> {
       },
     });
 
-    // Save PDF
-    const pdfPath = path.join(__dirname, 'sample-invoice.pdf');
+    // Save PDF (output folder)
+    const pdfPath = path.join(outputDir, 'sample-invoice.pdf');
     fs.writeFileSync(pdfPath, pdfBuffer);
 
     console.log(`\n✅ PDF generated successfully!`);

@@ -16,7 +16,9 @@ VERSION ?= $(shell git rev-parse --short HEAD 2>/dev/null || echo "latest")
         terraform-init terraform-plan terraform-apply terraform-destroy \
         set-webhook get-webhook-info dev-webhook dev-worker test-worker \
         logs-webhook logs-worker clean lint lint-fix test test-unit \
-        version revisions rollback-webhook rollback-worker
+        version revisions rollback-webhook rollback-worker \
+        sample-invoice seed-business-config upload-logo \
+        seed-customer-config list-customers upload-customer-logo
 
 # =============================================================================
 # Help
@@ -77,6 +79,16 @@ help:
 	@echo "  make revisions        List Cloud Run revisions"
 	@echo "  make rollback-webhook Rollback webhook to previous revision"
 	@echo "  make rollback-worker  Rollback worker to previous revision"
+	@echo ""
+	@echo "INVOICE GENERATION"
+	@echo "  make sample-invoice       Generate sample invoice PDF"
+	@echo "  make seed-business-config Seed default business config"
+	@echo "  make upload-logo          Upload default logo"
+	@echo ""
+	@echo "CUSTOMER MANAGEMENT (Multi-tenant)"
+	@echo "  make list-customers                     List all configured customers"
+	@echo "  make seed-customer-config CHAT_ID=xxx   Seed customer config by chat ID"
+	@echo "  make upload-customer-logo CHAT_ID=xxx LOGO=path  Upload customer logo"
 	@echo ""
 	@echo "Current project: $(PROJECT_ID)"
 	@echo "Region: $(REGION)"
@@ -305,6 +317,61 @@ rollback-worker:
 	@PREV_REV=$$(gcloud run revisions list --service=worker --region=$(REGION) --limit=2 --format='value(metadata.name)' | tail -1) && \
 	echo "Switching traffic to: $$PREV_REV" && \
 	gcloud run services update-traffic worker --to-revisions=$$PREV_REV=100 --region=$(REGION)
+
+# =============================================================================
+# Invoice Generation
+# =============================================================================
+
+sample-invoice:
+	@echo "Generating sample invoice PDF..."
+	cd services/worker && npx ts-node scripts/invoice/generate-sample-invoice.ts
+	@echo ""
+	@echo "Open the PDF: open services/worker/scripts/output/sample-invoice.pdf"
+
+seed-business-config:
+	@echo "Seeding business config to Firestore..."
+	@echo "Using config: $(or $(CONFIG),ksuma)"
+	cd services/worker && npx ts-node scripts/customer/seed-business-config.ts $(or $(CONFIG),ksuma)
+
+upload-logo:
+	@if [ -z "$(LOGO)" ]; then \
+		echo "Error: LOGO path not set"; \
+		echo "Usage: make upload-logo LOGO=path/to/logo.jpeg"; \
+		exit 1; \
+	fi
+	@echo "Uploading logo to Cloud Storage..."
+	cd services/worker && npx ts-node scripts/customer/upload-logo.ts ../../$(LOGO)
+
+# =============================================================================
+# Customer Management (Multi-tenant)
+# =============================================================================
+
+list-customers:
+	@echo "Listing configured customers..."
+	cd services/worker && npx ts-node scripts/customer/list-customers.ts
+
+seed-customer-config:
+	@if [ -z "$(CHAT_ID)" ]; then \
+		echo "Error: CHAT_ID not set"; \
+		echo "Usage: make seed-customer-config CHAT_ID=-1001234567890"; \
+		exit 1; \
+	fi
+	@echo "Seeding customer config for chat $(CHAT_ID)..."
+	cd services/worker && npx ts-node scripts/customer/seed-customer-config.ts $(CHAT_ID)
+
+upload-customer-logo:
+	@if [ -z "$(CHAT_ID)" ]; then \
+		echo "Error: CHAT_ID not set"; \
+		echo "Usage: make upload-customer-logo CHAT_ID=-1001234567890 LOGO=path/to/logo.png"; \
+		exit 1; \
+	fi
+	@if [ -z "$(LOGO)" ]; then \
+		echo "Error: LOGO path not set"; \
+		echo "Usage: make upload-customer-logo CHAT_ID=-1001234567890 LOGO=path/to/logo.png"; \
+		exit 1; \
+	fi
+	@echo "Uploading logo for chat $(CHAT_ID)..."
+	cd services/worker && npx ts-node scripts/customer/upload-logo.ts $(LOGO) $(CHAT_ID)
 
 # =============================================================================
 # Cleanup

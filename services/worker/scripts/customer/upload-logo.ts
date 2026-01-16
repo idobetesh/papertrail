@@ -1,6 +1,12 @@
 /**
  * Script to upload business logo to Cloud Storage and update Firestore config
- * Run with: npx ts-node scripts/upload-logo.ts <path-to-logo.png>
+ *
+ * Usage:
+ *   npx ts-node scripts/customer/upload-logo.ts <path-to-logo.png> [chat_id]
+ *
+ * Examples:
+ *   npx ts-node scripts/customer/upload-logo.ts ./my-logo.png           # Default config
+ *   npx ts-node scripts/customer/upload-logo.ts ./my-logo.png -100123   # Customer-specific
  *
  * Supported formats: PNG, JPEG
  */
@@ -23,10 +29,14 @@ const BUCKET_NAME =
 
 async function uploadLogo(): Promise<void> {
   const logoPath = process.argv[2];
+  const chatIdArg = process.argv[3];
 
   if (!logoPath) {
-    console.error('❌ Usage: npx ts-node scripts/upload-logo.ts <path-to-logo.png>');
-    console.error('   Example: npx ts-node scripts/upload-logo.ts ./my-logo.png');
+    console.error('❌ Usage: npx ts-node scripts/upload-logo.ts <path-to-logo.png> [chat_id]');
+    console.error('');
+    console.error('Examples:');
+    console.error('   npx ts-node scripts/upload-logo.ts ./my-logo.png');
+    console.error('   npx ts-node scripts/upload-logo.ts ./my-logo.png -1001234567890');
     process.exit(1);
   }
 
@@ -41,13 +51,33 @@ async function uploadLogo(): Promise<void> {
     process.exit(1);
   }
 
+  // Parse optional chat ID
+  let chatId: number | undefined;
+  let docId = DEFAULT_DOC_ID;
+
+  if (chatIdArg) {
+    chatId = parseInt(chatIdArg, 10);
+    if (isNaN(chatId)) {
+      console.error('❌ Invalid chat ID. Must be a number.');
+      process.exit(1);
+    }
+    docId = `chat_${chatId}`;
+  }
+
   console.log('🔧 Uploading logo...\n');
   console.log(`   File: ${logoPath}`);
   console.log(`   Bucket: ${BUCKET_NAME}`);
+  console.log(`   Config: ${docId}`);
+  if (chatId) {
+    console.log(`   Chat ID: ${chatId}`);
+  }
 
   const buffer = fs.readFileSync(logoPath);
   const filename = `logo${ext}`;
-  const filePath = `logos/${filename}`;
+
+  // Organize logos by chat ID for multi-customer support
+  const logoFolder = chatId ? `logos/${chatId}` : 'logos';
+  const filePath = `${logoFolder}/${filename}`;
 
   const bucket = storage.bucket(BUCKET_NAME);
   const file = bucket.file(filePath);
@@ -61,19 +91,20 @@ async function uploadLogo(): Promise<void> {
     },
   });
 
-  // Make publicly accessible
-  await file.makePublic();
+  // Note: Bucket has uniform bucket-level access with public read enabled via Terraform
+  // No need to call makePublic() on individual files
 
   const publicUrl = `https://storage.googleapis.com/${BUCKET_NAME}/${filePath}`;
 
   console.log(`\n✅ Logo uploaded: ${publicUrl}`);
 
   // Update Firestore config
-  const docRef = firestore.collection(COLLECTION_NAME).doc(DEFAULT_DOC_ID);
+  const docRef = firestore.collection(COLLECTION_NAME).doc(docId);
   const doc = await docRef.get();
 
   if (!doc.exists) {
-    console.log('\n⚠️  Business config not found. Run seed-business-config.ts first.');
+    const setupScript = chatId ? `seed-customer-config.ts ${chatId}` : 'seed-business-config.ts';
+    console.log(`\n⚠️  Config not found for ${docId}. Run ${setupScript} first.`);
     console.log('   Then run this script again to update the logo.');
     process.exit(1);
   }

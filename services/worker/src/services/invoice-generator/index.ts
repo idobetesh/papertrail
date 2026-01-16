@@ -15,6 +15,7 @@ import type {
 } from '../../../../../shared/types';
 import { generateInvoicePDFWithConfig } from './pdf.generator';
 import { getNextInvoiceNumber } from './counter.service';
+import { getBusinessConfig, getLogoBase64 } from './config.service';
 import { appendGeneratedInvoiceRow } from '../sheets.service';
 import logger from '../../logger';
 import { getConfig } from '../../config';
@@ -23,7 +24,6 @@ const GENERATED_INVOICES_COLLECTION = 'generated_invoices';
 
 let storage: Storage | null = null;
 let firestore: Firestore | null = null;
-let businessConfig: BusinessConfig | null = null;
 
 function getStorage(): Storage {
   if (!storage) {
@@ -40,12 +40,19 @@ function getFirestore(): Firestore {
 }
 
 /**
- * Load business configuration from invoice-config.json
+ * Load business configuration from Firestore (by chat ID) or local file
  * Falls back to example config in development
+ * @param chatId - Optional chat ID for customer-specific config
  */
-export function loadBusinessConfig(): BusinessConfig {
-  if (businessConfig) {
-    return businessConfig;
+export async function loadBusinessConfig(chatId?: number): Promise<BusinessConfig> {
+  try {
+    // Try Firestore first (production)
+    const config = await getBusinessConfig(chatId);
+    logger.info({ chatId }, 'Loaded business config from Firestore');
+    return config;
+  } catch {
+    // Fall back to local file (development)
+    logger.debug('Firestore unavailable, trying local config files');
   }
 
   const configPath = path.resolve(__dirname, '../../../../invoice-config.json');
@@ -55,18 +62,18 @@ export function loadBusinessConfig(): BusinessConfig {
     // Try to load actual config first
     if (fs.existsSync(configPath)) {
       const configContent = fs.readFileSync(configPath, 'utf-8');
-      businessConfig = JSON.parse(configContent) as BusinessConfig;
+      const config = JSON.parse(configContent) as BusinessConfig;
       logger.info('Loaded invoice config from invoice-config.json');
+      return config;
     } else if (fs.existsSync(exampleConfigPath)) {
       // Fall back to example config (for development/testing)
       const configContent = fs.readFileSync(exampleConfigPath, 'utf-8');
-      businessConfig = JSON.parse(configContent) as BusinessConfig;
+      const config = JSON.parse(configContent) as BusinessConfig;
       logger.warn('Using example invoice config - create invoice-config.json for production');
+      return config;
     } else {
       throw new Error('No invoice config file found');
     }
-
-    return businessConfig;
   } catch (error) {
     logger.error({ error }, 'Failed to load business config');
     throw new Error(
@@ -103,8 +110,13 @@ export async function generateInvoice(
   const log = logger.child({ chatId, userId, username });
   log.info('Starting invoice generation');
 
-  // Load business config
-  const config = loadBusinessConfig();
+  // Load business config (by chat ID for multi-customer support)
+  const config = await loadBusinessConfig(chatId);
+  log.debug({ businessName: config.business.name }, 'Loaded business config');
+
+  // Load logo (by chat ID for multi-customer support)
+  const logoBase64 = await getLogoBase64(chatId);
+  log.debug({ hasLogo: !!logoBase64 }, 'Loaded logo');
 
   // Get next invoice number (atomic)
   const invoiceNumber = await getNextInvoiceNumber();
@@ -123,7 +135,7 @@ export async function generateInvoice(
   };
 
   // Generate PDF
-  const pdfBuffer = await generateInvoicePDFWithConfig(invoiceData, config);
+  const pdfBuffer = await generateInvoicePDFWithConfig(invoiceData, config, logoBase64);
   log.info({ pdfSize: pdfBuffer.length }, 'PDF generated');
 
   // Upload to Cloud Storage
@@ -178,8 +190,7 @@ async function uploadPDF(invoiceNumber: string, pdfBuffer: Buffer): Promise<stri
     },
   });
 
-  // Make file publicly accessible
-  await file.makePublic();
+  // Note: Bucket has uniform bucket-level access with public read enabled via Terraform
 
   return `https://storage.googleapis.com/${bucketName}/${filePath}`;
 }

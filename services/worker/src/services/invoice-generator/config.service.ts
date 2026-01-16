@@ -15,9 +15,10 @@ const LOGO_CACHE_TTL_MS = 60 * 60 * 1000; // 1 hour cache for logo
 
 let firestore: Firestore | null = null;
 let storage: Storage | null = null;
-let cachedConfig: BusinessConfig | null = null;
-let cachedLogoBase64: string | null = null;
-let logoLastFetched: number = 0;
+
+// Cache per chat ID
+const configCache: Map<string, BusinessConfig> = new Map();
+const logoCache: Map<string, { base64: string; fetchedAt: number }> = new Map();
 
 function getFirestore(): Firestore {
   if (!firestore) {
@@ -55,28 +56,67 @@ export interface BusinessConfigDocument {
 }
 
 /**
+ * Get document ID for a chat - either chat-specific or default
+ */
+function getDocIdForChat(chatId?: number): string {
+  return chatId ? `chat_${chatId}` : DEFAULT_DOC_ID;
+}
+
+/**
  * Get business configuration from Firestore
+ * Looks up by chat ID first, falls back to default config
  * Caches the config for performance
  */
-export async function getBusinessConfig(forceRefresh = false): Promise<BusinessConfig> {
-  if (cachedConfig && !forceRefresh) {
-    return cachedConfig;
+export async function getBusinessConfig(
+  chatId?: number,
+  forceRefresh = false
+): Promise<BusinessConfig> {
+  const cacheKey = chatId ? `chat_${chatId}` : 'default';
+
+  if (!forceRefresh && configCache.has(cacheKey)) {
+    return configCache.get(cacheKey)!;
   }
 
   const db = getFirestore();
-  const docRef = db.collection(COLLECTION_NAME).doc(DEFAULT_DOC_ID);
-  const log = logger.child({ collection: COLLECTION_NAME, docId: DEFAULT_DOC_ID });
+  const log = logger.child({ collection: COLLECTION_NAME, chatId });
 
-  const doc = await docRef.get();
+  // Try chat-specific config first
+  if (chatId) {
+    const chatDocRef = db.collection(COLLECTION_NAME).doc(getDocIdForChat(chatId));
+    const chatDoc = await chatDocRef.get();
 
-  if (!doc.exists) {
+    if (chatDoc.exists) {
+      const data = chatDoc.data() as BusinessConfigDocument;
+      const config = parseConfigDocument(data);
+      configCache.set(cacheKey, config);
+      log.info('Business config loaded for chat');
+      return config;
+    }
+
+    log.debug('No chat-specific config, falling back to default');
+  }
+
+  // Fall back to default config
+  const defaultDocRef = db.collection(COLLECTION_NAME).doc(DEFAULT_DOC_ID);
+  const defaultDoc = await defaultDocRef.get();
+
+  if (!defaultDoc.exists) {
     log.warn('Business config not found in Firestore, using defaults');
     return getDefaultConfig();
   }
 
-  const data = doc.data() as BusinessConfigDocument;
+  const data = defaultDoc.data() as BusinessConfigDocument;
+  const config = parseConfigDocument(data);
+  configCache.set(cacheKey, config);
+  log.info('Default business config loaded');
+  return config;
+}
 
-  cachedConfig = {
+/**
+ * Parse Firestore document to BusinessConfig
+ */
+function parseConfigDocument(data: BusinessConfigDocument): BusinessConfig {
+  return {
     business: {
       name: data.business.name,
       taxId: data.business.taxId,
@@ -90,81 +130,62 @@ export async function getBusinessConfig(forceRefresh = false): Promise<BusinessC
       generatedByText: data.invoice.generatedByText,
     },
   };
-
-  log.info('Business config loaded from Firestore');
-  return cachedConfig;
 }
 
 /**
  * Get logo as base64 data URL for embedding in HTML
+ * Looks up by chat ID first, falls back to default
  * Returns null if no logo is configured
  */
-export async function getLogoBase64(): Promise<string | null> {
+export async function getLogoBase64(chatId?: number): Promise<string | null> {
   const now = Date.now();
+  const cacheKey = chatId ? `chat_${chatId}` : 'default';
 
   // Return cached logo if still valid
-  if (cachedLogoBase64 && now - logoLastFetched < LOGO_CACHE_TTL_MS) {
-    return cachedLogoBase64;
+  const cached = logoCache.get(cacheKey);
+  if (cached && now - cached.fetchedAt < LOGO_CACHE_TTL_MS) {
+    return cached.base64;
   }
 
   const db = getFirestore();
-  const docRef = db.collection(COLLECTION_NAME).doc(DEFAULT_DOC_ID);
-  const log = logger.child({ function: 'getLogoBase64' });
+  const log = logger.child({ function: 'getLogoBase64', chatId });
 
   try {
-    const doc = await docRef.get();
+    // Try chat-specific config first
+    let logoUrl: string | undefined;
 
-    if (!doc.exists) {
+    if (chatId) {
+      const chatDocRef = db.collection(COLLECTION_NAME).doc(getDocIdForChat(chatId));
+      const chatDoc = await chatDocRef.get();
+
+      if (chatDoc.exists) {
+        const data = chatDoc.data() as BusinessConfigDocument;
+        logoUrl = data.business.logoUrl;
+      }
+    }
+
+    // Fall back to default if no chat-specific logo
+    if (!logoUrl) {
+      const defaultDocRef = db.collection(COLLECTION_NAME).doc(DEFAULT_DOC_ID);
+      const defaultDoc = await defaultDocRef.get();
+
+      if (defaultDoc.exists) {
+        const data = defaultDoc.data() as BusinessConfigDocument;
+        logoUrl = data.business.logoUrl;
+      }
+    }
+
+    if (!logoUrl) {
       return null;
     }
 
-    const data = doc.data() as BusinessConfigDocument;
+    const base64 = await fetchLogoAsBase64(logoUrl);
 
-    if (!data.business.logoUrl) {
-      return null;
+    if (base64) {
+      logoCache.set(cacheKey, { base64, fetchedAt: now });
     }
 
-    // If it's already a data URL, return it directly
-    if (data.business.logoUrl.startsWith('data:')) {
-      cachedLogoBase64 = data.business.logoUrl;
-      logoLastFetched = now;
-      return cachedLogoBase64;
-    }
-
-    // If it's a Cloud Storage URL (gs://), fetch the file
-    if (data.business.logoUrl.startsWith('gs://')) {
-      const gcsPath = data.business.logoUrl.replace('gs://', '');
-      const [bucketName, ...pathParts] = gcsPath.split('/');
-      const filePath = pathParts.join('/');
-
-      const gcs = getStorage();
-      const bucket = gcs.bucket(bucketName);
-      const file = bucket.file(filePath);
-
-      const [buffer] = await file.download();
-      const mimeType = filePath.endsWith('.png') ? 'image/png' : 'image/jpeg';
-
-      cachedLogoBase64 = `data:${mimeType};base64,${buffer.toString('base64')}`;
-      logoLastFetched = now;
-
-      log.info({ size: buffer.length }, 'Logo loaded from Cloud Storage');
-      return cachedLogoBase64;
-    }
-
-    // If it's a public URL, fetch it
-    if (data.business.logoUrl.startsWith('http')) {
-      const response = await fetch(data.business.logoUrl);
-      const buffer = Buffer.from(await response.arrayBuffer());
-      const contentType = response.headers.get('content-type') || 'image/png';
-
-      cachedLogoBase64 = `data:${contentType};base64,${buffer.toString('base64')}`;
-      logoLastFetched = now;
-
-      log.info({ size: buffer.length }, 'Logo loaded from URL');
-      return cachedLogoBase64;
-    }
-
-    return null;
+    return base64;
   } catch (error) {
     log.error({ error }, 'Failed to load logo');
     return null;
@@ -172,12 +193,58 @@ export async function getLogoBase64(): Promise<string | null> {
 }
 
 /**
- * Save or update business configuration in Firestore
+ * Fetch logo from various sources and return as base64
  */
-export async function saveBusinessConfig(config: BusinessConfigDocument): Promise<void> {
+async function fetchLogoAsBase64(logoUrl: string): Promise<string | null> {
+  const log = logger.child({ function: 'fetchLogoAsBase64' });
+  // If it's already a data URL, return it directly
+  if (logoUrl.startsWith('data:')) {
+    return logoUrl;
+  }
+
+  // If it's a Cloud Storage URL (gs://), fetch the file
+  if (logoUrl.startsWith('gs://')) {
+    const gcsPath = logoUrl.replace('gs://', '');
+    const [bucketName, ...pathParts] = gcsPath.split('/');
+    const filePath = pathParts.join('/');
+
+    const gcs = getStorage();
+    const bucket = gcs.bucket(bucketName);
+    const file = bucket.file(filePath);
+
+    const [buffer] = await file.download();
+    const mimeType = filePath.endsWith('.png') ? 'image/png' : 'image/jpeg';
+
+    log.info({ size: buffer.length }, 'Logo loaded from Cloud Storage');
+    return `data:${mimeType};base64,${buffer.toString('base64')}`;
+  }
+
+  // If it's a public URL, fetch it
+  if (logoUrl.startsWith('http')) {
+    const response = await fetch(logoUrl);
+    const buffer = Buffer.from(await response.arrayBuffer());
+    const contentType = response.headers.get('content-type') || 'image/png';
+
+    log.info({ size: buffer.length }, 'Logo loaded from URL');
+    return `data:${contentType};base64,${buffer.toString('base64')}`;
+  }
+
+  return null;
+}
+
+/**
+ * Save or update business configuration in Firestore
+ * @param config - Business config document
+ * @param chatId - Optional chat ID for customer-specific config
+ */
+export async function saveBusinessConfig(
+  config: BusinessConfigDocument,
+  chatId?: number
+): Promise<void> {
   const db = getFirestore();
-  const docRef = db.collection(COLLECTION_NAME).doc(DEFAULT_DOC_ID);
-  const log = logger.child({ collection: COLLECTION_NAME, docId: DEFAULT_DOC_ID });
+  const docId = getDocIdForChat(chatId);
+  const docRef = db.collection(COLLECTION_NAME).doc(docId);
+  const log = logger.child({ collection: COLLECTION_NAME, docId, chatId });
 
   const existingDoc = await docRef.get();
 
@@ -196,56 +263,72 @@ export async function saveBusinessConfig(config: BusinessConfigDocument): Promis
     log.info('Business config created');
   }
 
-  // Clear cache
-  cachedConfig = null;
-  cachedLogoBase64 = null;
+  // Clear cache for this chat
+  const cacheKey = chatId ? `chat_${chatId}` : 'default';
+  configCache.delete(cacheKey);
+  logoCache.delete(cacheKey);
 }
 
 /**
  * Upload logo to Cloud Storage and update config
+ * @param buffer - Logo file buffer
+ * @param filename - Filename for the logo
+ * @param bucketName - Cloud Storage bucket name
+ * @param chatId - Optional chat ID for customer-specific config
  */
 export async function uploadLogo(
   buffer: Buffer,
   filename: string,
-  bucketName: string
+  bucketName: string,
+  chatId?: number
 ): Promise<string> {
   const gcs = getStorage();
   const bucket = gcs.bucket(bucketName);
-  const filePath = `logos/${filename}`;
+
+  // Organize logos by chat ID for multi-customer support
+  const logoFolder = chatId ? `logos/${chatId}` : 'logos';
+  const filePath = `${logoFolder}/${filename}`;
   const file = bucket.file(filePath);
 
   await file.save(buffer, {
     contentType: filename.endsWith('.png') ? 'image/png' : 'image/jpeg',
   });
 
-  // Make publicly accessible
-  await file.makePublic();
+  // Note: Bucket has uniform bucket-level access with public read enabled via Terraform
 
   const publicUrl = `https://storage.googleapis.com/${bucketName}/${filePath}`;
 
   // Update config with new logo URL
   const db = getFirestore();
-  const docRef = db.collection(COLLECTION_NAME).doc(DEFAULT_DOC_ID);
+  const docId = getDocIdForChat(chatId);
+  const docRef = db.collection(COLLECTION_NAME).doc(docId);
 
   await docRef.update({
     'business.logoUrl': publicUrl,
     updatedAt: FieldValue.serverTimestamp(),
   });
 
-  // Clear cache
-  cachedLogoBase64 = null;
+  // Clear cache for this chat
+  const cacheKey = chatId ? `chat_${chatId}` : 'default';
+  logoCache.delete(cacheKey);
 
-  logger.info({ publicUrl }, 'Logo uploaded and config updated');
+  logger.info({ publicUrl, chatId }, 'Logo uploaded and config updated');
   return publicUrl;
 }
 
 /**
  * Clear cached config (useful for testing or after updates)
+ * @param chatId - Optional chat ID to clear specific cache, or all if not provided
  */
-export function clearConfigCache(): void {
-  cachedConfig = null;
-  cachedLogoBase64 = null;
-  logoLastFetched = 0;
+export function clearConfigCache(chatId?: number): void {
+  if (chatId !== undefined) {
+    const cacheKey = `chat_${chatId}`;
+    configCache.delete(cacheKey);
+    logoCache.delete(cacheKey);
+  } else {
+    configCache.clear();
+    logoCache.clear();
+  }
 }
 
 /**
@@ -263,17 +346,39 @@ function getDefaultConfig(): BusinessConfig {
     },
     invoice: {
       digitalSignatureText: 'מסמך ממוחשב חתום דיגיטלית',
-      generatedByText: 'הופק ע"י PaperTrail',
+      generatedByText: 'הופק ע"י Papertrail',
     },
   };
 }
 
 /**
  * Check if business config exists in Firestore
+ * @param chatId - Optional chat ID to check customer-specific config
  */
-export async function hasBusinessConfig(): Promise<boolean> {
+export async function hasBusinessConfig(chatId?: number): Promise<boolean> {
   const db = getFirestore();
-  const docRef = db.collection(COLLECTION_NAME).doc(DEFAULT_DOC_ID);
+  const docId = getDocIdForChat(chatId);
+  const docRef = db.collection(COLLECTION_NAME).doc(docId);
   const doc = await docRef.get();
   return doc.exists;
+}
+
+/**
+ * List all customer configs in Firestore
+ */
+export async function listCustomerConfigs(): Promise<
+  Array<{ chatId: number | null; businessName: string }>
+> {
+  const db = getFirestore();
+  const snapshot = await db.collection(COLLECTION_NAME).get();
+
+  return snapshot.docs.map((doc) => {
+    const data = doc.data() as BusinessConfigDocument;
+    const chatId = doc.id.startsWith('chat_') ? parseInt(doc.id.replace('chat_', ''), 10) : null;
+
+    return {
+      chatId,
+      businessName: data.business.name,
+    };
+  });
 }
