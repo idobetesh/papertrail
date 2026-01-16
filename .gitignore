@@ -71,6 +71,9 @@ services/worker/scripts/output/*
 # Customer onboarding guide (internal documentation)
 docs/CUSTOMER_ONBOARDING.md
 
+# Future planning docs (internal)
+docs/future/
+
 # Business logos (contains branding)
 docs/assets/invoice-logo.jpeg
 docs/assets/customer-logos/
