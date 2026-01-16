@@ -73,8 +73,11 @@ export async function getBusinessConfig(
 ): Promise<BusinessConfig> {
   const cacheKey = chatId ? `chat_${chatId}` : 'default';
 
-  if (!forceRefresh && configCache.has(cacheKey)) {
-    return configCache.get(cacheKey)!;
+  if (!forceRefresh) {
+    const cached = configCache.get(cacheKey);
+    if (cached) {
+      return cached;
+    }
   }
 
   const db = getFirestore();

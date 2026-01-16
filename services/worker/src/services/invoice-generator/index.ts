@@ -122,16 +122,28 @@ export async function generateInvoice(
   const invoiceNumber = await getNextInvoiceNumber();
   log.info({ invoiceNumber }, 'Got invoice number');
 
+  // Validate required session fields
+  if (
+    !session.documentType ||
+    !session.customerName ||
+    !session.description ||
+    session.amount === undefined ||
+    !session.paymentMethod ||
+    !session.date
+  ) {
+    throw new Error('Invoice session is incomplete - missing required fields');
+  }
+
   // Build invoice data
   const invoiceData: InvoiceData = {
     invoiceNumber,
-    documentType: session.documentType!,
-    customerName: session.customerName!,
+    documentType: session.documentType,
+    customerName: session.customerName,
     customerTaxId: session.customerTaxId,
-    description: session.description!,
-    amount: session.amount!,
-    paymentMethod: session.paymentMethod!,
-    date: session.date!,
+    description: session.description,
+    amount: session.amount,
+    paymentMethod: session.paymentMethod,
+    date: session.date,
   };
 
   // Generate PDF
@@ -146,16 +158,16 @@ export async function generateInvoice(
   await saveInvoiceRecord(invoiceNumber, invoiceData, userId, username, chatId, pdfUrl);
   log.info('Invoice record saved to Firestore');
 
-  // Log to Google Sheets
+  // Log to Google Sheets (fields already validated above)
   await appendGeneratedInvoiceRow({
     invoice_number: invoiceNumber,
-    document_type: session.documentType === 'invoice' ? 'חשבונית' : 'חשבונית-קבלה',
-    date: formatDateDisplay(session.date!),
-    customer_name: session.customerName!,
-    customer_tax_id: session.customerTaxId || '',
-    description: session.description!,
-    amount: session.amount!,
-    payment_method: session.paymentMethod!,
+    document_type: invoiceData.documentType === 'invoice' ? 'חשבונית' : 'חשבונית-קבלה',
+    date: formatDateDisplay(invoiceData.date),
+    customer_name: invoiceData.customerName,
+    customer_tax_id: invoiceData.customerTaxId || '',
+    description: invoiceData.description,
+    amount: invoiceData.amount,
+    payment_method: invoiceData.paymentMethod,
     generated_by: username,
     generated_at: new Date().toISOString(),
     pdf_link: pdfUrl,
