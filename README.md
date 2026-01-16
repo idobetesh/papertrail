@@ -21,17 +21,20 @@
 
 - 📸 **Photo Processing** - Send invoice photos to Telegram group
 - 🤖 **AI Vision** - Gemini/GPT-4o extracts invoice data (Hebrew + English)
+- 🧾 **Invoice Generation** - Create professional PDF invoices via `/invoice`
 - ☁️ **Cloud Storage** - Auto-organized by `YYYY/MM/`
 - 📊 **Sheets Logging** - All extracted data logged automatically
+- 📈 **Monitoring Dashboard** - GCP dashboard with alerts
 - 🔄 **Reliable** - Cloud Tasks with retry & deduplication
+- 👥 **Multi-tenant** - Per-customer branding by chat ID
 - 💰 **Cost-effective** - Scales to zero, mostly free tier
 
 ## Architecture
 
 ```
-Telegram → Webhook Handler (Cloud Run) → Cloud Tasks → Worker (Cloud Run)
-                                                            ↓
-                                              Cloud Storage + Sheets + Firestore
+Telegram → Webhook Handler → Cloud Tasks → Worker
+                                              ↓
+                              Storage + Sheets + Firestore + PDF Generation
 ```
 
 ## Quick Start
@@ -60,15 +63,17 @@ make terraform-init terraform-apply push
 ## Commands
 
 ```bash
-make install          # Install dependencies
-make dev-webhook      # Run webhook locally
-make dev-worker       # Run worker locally
-make test             # Run tests
-make lint             # Lint code
-make push             # Build & push images
-make terraform-apply  # Deploy infrastructure
-make version          # Check deployed version
-make rollback-webhook # Rollback to previous version
+make install             # Install dependencies
+make dev-webhook         # Run webhook locally
+make dev-worker          # Run worker locally
+make test                # Run tests
+make lint                # Lint code
+make push                # Build & push images
+make terraform-apply     # Deploy infrastructure
+make version             # Check deployed version
+make sample-invoice      # Generate sample invoice PDF
+make seed-business-config  # Seed business config to Firestore
+make list-customers      # List configured customers
 ```
 
 ## Configuration
