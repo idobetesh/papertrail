@@ -61,6 +61,7 @@ resource "google_project_service" "apis" {
     "cloudbuild.googleapis.com",
     "iam.googleapis.com",
     "billingbudgets.googleapis.com",
+    "monitoring.googleapis.com",
   ])
 
   service            = each.value
@@ -113,6 +114,38 @@ resource "google_storage_bucket" "invoices" {
 # Make bucket publicly readable
 resource "google_storage_bucket_iam_member" "public_read" {
   bucket = google_storage_bucket.invoices.name
+  role   = "roles/storage.objectViewer"
+  member = "allUsers"
+}
+
+# ============================================================================
+# Cloud Storage Bucket (for generated invoices)
+# ============================================================================
+
+resource "google_storage_bucket" "generated_invoices" {
+  name          = "${var.project_id}-generated-invoices"
+  location      = var.region
+  force_destroy = false
+
+  uniform_bucket_level_access = true
+
+  # Move to cheaper storage after 1 year (tax compliance requires keeping records)
+  lifecycle_rule {
+    condition {
+      age = 365
+    }
+    action {
+      type          = "SetStorageClass"
+      storage_class = "COLDLINE"
+    }
+  }
+
+  labels = local.labels
+}
+
+# Make generated invoices bucket publicly readable
+resource "google_storage_bucket_iam_member" "generated_invoices_public_read" {
+  bucket = google_storage_bucket.generated_invoices.name
   role   = "roles/storage.objectViewer"
   member = "allUsers"
 }
@@ -267,6 +300,13 @@ resource "google_secret_manager_secret_iam_member" "worker_gemini_key" {
 # Worker can write to Cloud Storage bucket
 resource "google_storage_bucket_iam_member" "worker_storage" {
   bucket = google_storage_bucket.invoices.name
+  role   = "roles/storage.objectAdmin"
+  member = "serviceAccount:${google_service_account.worker.email}"
+}
+
+# Worker can write to generated invoices bucket
+resource "google_storage_bucket_iam_member" "worker_generated_invoices" {
+  bucket = google_storage_bucket.generated_invoices.name
   role   = "roles/storage.objectAdmin"
   member = "serviceAccount:${google_service_account.worker.email}"
 }
@@ -459,6 +499,11 @@ resource "google_cloud_run_v2_service" "worker" {
       }
 
       env {
+        name  = "GENERATED_INVOICES_BUCKET"
+        value = google_storage_bucket.generated_invoices.name
+      }
+
+      env {
         name = "SHEET_ID"
         value_source {
           secret_key_ref {
@@ -487,6 +532,7 @@ resource "google_cloud_run_v2_service" "worker" {
     google_secret_manager_secret_version.openai_api_key,
     google_secret_manager_secret_version.sheet_id,
     google_storage_bucket.invoices,
+    google_storage_bucket.generated_invoices,
   ]
 }
 
@@ -560,4 +606,397 @@ resource "google_billing_budget" "monthly_budget" {
   }
 
   depends_on = [google_project_service.apis["billingbudgets.googleapis.com"]]
+}
+
+# ============================================================================
+# Cloud Monitoring Dashboard
+# ============================================================================
+
+resource "google_monitoring_dashboard" "papertrail" {
+  dashboard_json = jsonencode({
+    displayName = "Papertrail Invoice Bot"
+    mosaicLayout = {
+      columns = 12
+      tiles = [
+        # Row 1: Key Metrics
+        {
+          width  = 4
+          height = 4
+          widget = {
+            title = "Worker Request Count"
+            xyChart = {
+              dataSets = [{
+                timeSeriesQuery = {
+                  timeSeriesFilter = {
+                    filter = "resource.type=\"cloud_run_revision\" AND resource.labels.service_name=\"worker\" AND metric.type=\"run.googleapis.com/request_count\""
+                    aggregation = {
+                      alignmentPeriod  = "60s"
+                      perSeriesAligner = "ALIGN_RATE"
+                    }
+                  }
+                }
+                plotType = "LINE"
+              }]
+              yAxis = { scale = "LINEAR" }
+            }
+          }
+        },
+        {
+          xPos   = 4
+          width  = 4
+          height = 4
+          widget = {
+            title = "Worker Request Latency (p50/p95/p99)"
+            xyChart = {
+              dataSets = [
+                {
+                  timeSeriesQuery = {
+                    timeSeriesFilter = {
+                      filter = "resource.type=\"cloud_run_revision\" AND resource.labels.service_name=\"worker\" AND metric.type=\"run.googleapis.com/request_latencies\""
+                      aggregation = {
+                        alignmentPeriod    = "60s"
+                        perSeriesAligner   = "ALIGN_PERCENTILE_50"
+                        crossSeriesReducer = "REDUCE_MEAN"
+                      }
+                    }
+                  }
+                  plotType   = "LINE"
+                  legendTemplate = "p50"
+                },
+                {
+                  timeSeriesQuery = {
+                    timeSeriesFilter = {
+                      filter = "resource.type=\"cloud_run_revision\" AND resource.labels.service_name=\"worker\" AND metric.type=\"run.googleapis.com/request_latencies\""
+                      aggregation = {
+                        alignmentPeriod    = "60s"
+                        perSeriesAligner   = "ALIGN_PERCENTILE_95"
+                        crossSeriesReducer = "REDUCE_MEAN"
+                      }
+                    }
+                  }
+                  plotType   = "LINE"
+                  legendTemplate = "p95"
+                },
+                {
+                  timeSeriesQuery = {
+                    timeSeriesFilter = {
+                      filter = "resource.type=\"cloud_run_revision\" AND resource.labels.service_name=\"worker\" AND metric.type=\"run.googleapis.com/request_latencies\""
+                      aggregation = {
+                        alignmentPeriod    = "60s"
+                        perSeriesAligner   = "ALIGN_PERCENTILE_99"
+                        crossSeriesReducer = "REDUCE_MEAN"
+                      }
+                    }
+                  }
+                  plotType   = "LINE"
+                  legendTemplate = "p99"
+                }
+              ]
+              yAxis = { scale = "LINEAR" }
+            }
+          }
+        },
+        {
+          xPos   = 8
+          width  = 4
+          height = 4
+          widget = {
+            title = "Error Rate (5xx)"
+            xyChart = {
+              dataSets = [{
+                timeSeriesQuery = {
+                  timeSeriesFilter = {
+                    filter = "resource.type=\"cloud_run_revision\" AND resource.labels.service_name=\"worker\" AND metric.type=\"run.googleapis.com/request_count\" AND metric.labels.response_code_class=\"5xx\""
+                    aggregation = {
+                      alignmentPeriod  = "60s"
+                      perSeriesAligner = "ALIGN_RATE"
+                    }
+                  }
+                }
+                plotType = "LINE"
+              }]
+              yAxis = { scale = "LINEAR" }
+            }
+          }
+        },
+        # Row 2: Cloud Tasks
+        {
+          yPos   = 4
+          width  = 6
+          height = 4
+          widget = {
+            title = "Cloud Tasks Queue Depth"
+            xyChart = {
+              dataSets = [{
+                timeSeriesQuery = {
+                  timeSeriesFilter = {
+                    filter = "resource.type=\"cloud_tasks_queue\" AND resource.labels.queue_id=\"invoice-processing\" AND metric.type=\"cloudtasks.googleapis.com/queue/depth\""
+                    aggregation = {
+                      alignmentPeriod  = "60s"
+                      perSeriesAligner = "ALIGN_MEAN"
+                    }
+                  }
+                }
+                plotType = "LINE"
+              }]
+              yAxis = { scale = "LINEAR" }
+            }
+          }
+        },
+        {
+          xPos   = 6
+          yPos   = 4
+          width  = 6
+          height = 4
+          widget = {
+            title = "Cloud Tasks - Attempt Count by Response"
+            xyChart = {
+              dataSets = [{
+                timeSeriesQuery = {
+                  timeSeriesFilter = {
+                    filter = "resource.type=\"cloud_tasks_queue\" AND resource.labels.queue_id=\"invoice-processing\" AND metric.type=\"cloudtasks.googleapis.com/queue/task_attempt_count\""
+                    aggregation = {
+                      alignmentPeriod    = "60s"
+                      perSeriesAligner   = "ALIGN_RATE"
+                      crossSeriesReducer = "REDUCE_SUM"
+                      groupByFields      = ["metric.labels.response_code"]
+                    }
+                  }
+                }
+                plotType = "STACKED_BAR"
+              }]
+              yAxis = { scale = "LINEAR" }
+            }
+          }
+        },
+        # Row 3: Webhook Handler
+        {
+          yPos   = 8
+          width  = 6
+          height = 4
+          widget = {
+            title = "Webhook Handler Requests"
+            xyChart = {
+              dataSets = [{
+                timeSeriesQuery = {
+                  timeSeriesFilter = {
+                    filter = "resource.type=\"cloud_run_revision\" AND resource.labels.service_name=\"webhook-handler\" AND metric.type=\"run.googleapis.com/request_count\""
+                    aggregation = {
+                      alignmentPeriod  = "60s"
+                      perSeriesAligner = "ALIGN_RATE"
+                    }
+                  }
+                }
+                plotType = "LINE"
+              }]
+              yAxis = { scale = "LINEAR" }
+            }
+          }
+        },
+        {
+          xPos   = 6
+          yPos   = 8
+          width  = 6
+          height = 4
+          widget = {
+            title = "Webhook Handler Latency"
+            xyChart = {
+              dataSets = [{
+                timeSeriesQuery = {
+                  timeSeriesFilter = {
+                    filter = "resource.type=\"cloud_run_revision\" AND resource.labels.service_name=\"webhook-handler\" AND metric.type=\"run.googleapis.com/request_latencies\""
+                    aggregation = {
+                      alignmentPeriod    = "60s"
+                      perSeriesAligner   = "ALIGN_PERCENTILE_95"
+                      crossSeriesReducer = "REDUCE_MEAN"
+                    }
+                  }
+                }
+                plotType = "LINE"
+              }]
+              yAxis = { scale = "LINEAR" }
+            }
+          }
+        },
+        # Row 4: Instance & Memory
+        {
+          yPos   = 12
+          width  = 4
+          height = 4
+          widget = {
+            title = "Active Instances"
+            xyChart = {
+              dataSets = [
+                {
+                  timeSeriesQuery = {
+                    timeSeriesFilter = {
+                      filter = "resource.type=\"cloud_run_revision\" AND resource.labels.service_name=\"worker\" AND metric.type=\"run.googleapis.com/container/instance_count\""
+                      aggregation = {
+                        alignmentPeriod  = "60s"
+                        perSeriesAligner = "ALIGN_MEAN"
+                      }
+                    }
+                  }
+                  plotType       = "LINE"
+                  legendTemplate = "worker"
+                },
+                {
+                  timeSeriesQuery = {
+                    timeSeriesFilter = {
+                      filter = "resource.type=\"cloud_run_revision\" AND resource.labels.service_name=\"webhook-handler\" AND metric.type=\"run.googleapis.com/container/instance_count\""
+                      aggregation = {
+                        alignmentPeriod  = "60s"
+                        perSeriesAligner = "ALIGN_MEAN"
+                      }
+                    }
+                  }
+                  plotType       = "LINE"
+                  legendTemplate = "webhook"
+                }
+              ]
+              yAxis = { scale = "LINEAR" }
+            }
+          }
+        },
+        {
+          xPos   = 4
+          yPos   = 12
+          width  = 4
+          height = 4
+          widget = {
+            title = "Worker Memory Usage"
+            xyChart = {
+              dataSets = [{
+                timeSeriesQuery = {
+                  timeSeriesFilter = {
+                    filter = "resource.type=\"cloud_run_revision\" AND resource.labels.service_name=\"worker\" AND metric.type=\"run.googleapis.com/container/memory/utilizations\""
+                    aggregation = {
+                      alignmentPeriod    = "60s"
+                      perSeriesAligner   = "ALIGN_PERCENTILE_95"
+                      crossSeriesReducer = "REDUCE_MEAN"
+                    }
+                  }
+                }
+                plotType = "LINE"
+              }]
+              yAxis = { scale = "LINEAR" }
+            }
+          }
+        },
+        {
+          xPos   = 8
+          yPos   = 12
+          width  = 4
+          height = 4
+          widget = {
+            title = "Worker CPU Usage"
+            xyChart = {
+              dataSets = [{
+                timeSeriesQuery = {
+                  timeSeriesFilter = {
+                    filter = "resource.type=\"cloud_run_revision\" AND resource.labels.service_name=\"worker\" AND metric.type=\"run.googleapis.com/container/cpu/utilizations\""
+                    aggregation = {
+                      alignmentPeriod    = "60s"
+                      perSeriesAligner   = "ALIGN_PERCENTILE_95"
+                      crossSeriesReducer = "REDUCE_MEAN"
+                    }
+                  }
+                }
+                plotType = "LINE"
+              }]
+              yAxis = { scale = "LINEAR" }
+            }
+          }
+        },
+        # Row 5: Log-based errors
+        {
+          yPos   = 16
+          width  = 12
+          height = 4
+          widget = {
+            title = "Recent Errors (from logs)"
+            logsPanel = {
+              filter = "resource.type=\"cloud_run_revision\" AND (resource.labels.service_name=\"worker\" OR resource.labels.service_name=\"webhook-handler\") AND (severity>=ERROR OR jsonPayload.level>=50)"
+            }
+          }
+        }
+      ]
+    }
+  })
+
+  depends_on = [google_project_service.apis]
+}
+
+# ============================================================================
+# Alerting Policies
+# ============================================================================
+
+# Alert on high error rate
+resource "google_monitoring_alert_policy" "high_error_rate" {
+  display_name = "Papertrail - High Error Rate"
+  combiner     = "OR"
+
+  conditions {
+    display_name = "Worker 5xx error rate > 10%"
+
+    condition_threshold {
+      filter          = "resource.type=\"cloud_run_revision\" AND resource.labels.service_name=\"worker\" AND metric.type=\"run.googleapis.com/request_count\" AND metric.labels.response_code_class=\"5xx\""
+      duration        = "300s"
+      comparison      = "COMPARISON_GT"
+      threshold_value = 0.1
+
+      aggregations {
+        alignment_period   = "60s"
+        per_series_aligner = "ALIGN_RATE"
+      }
+    }
+  }
+
+  notification_channels = []
+
+  alert_strategy {
+    auto_close = "604800s" # 7 days
+  }
+
+  documentation {
+    content   = "The worker service is experiencing a high error rate (>10%). Check Cloud Run logs for details."
+    mime_type = "text/markdown"
+  }
+
+  depends_on = [google_project_service.apis]
+}
+
+# Alert on stuck tasks in queue
+resource "google_monitoring_alert_policy" "queue_backlog" {
+  display_name = "Papertrail - Queue Backlog"
+  combiner     = "OR"
+
+  conditions {
+    display_name = "Queue depth > 50 for 10 minutes"
+
+    condition_threshold {
+      filter          = "resource.type=\"cloud_tasks_queue\" AND resource.labels.queue_id=\"invoice-processing\" AND metric.type=\"cloudtasks.googleapis.com/queue/depth\""
+      duration        = "600s"
+      comparison      = "COMPARISON_GT"
+      threshold_value = 50
+
+      aggregations {
+        alignment_period   = "60s"
+        per_series_aligner = "ALIGN_MEAN"
+      }
+    }
+  }
+
+  notification_channels = []
+
+  alert_strategy {
+    auto_close = "604800s"
+  }
+
+  documentation {
+    content   = "The invoice processing queue has a large backlog. This may indicate the worker is having issues or is overloaded."
+    mime_type = "text/markdown"
+  }
+
+  depends_on = [google_project_service.apis]
 }

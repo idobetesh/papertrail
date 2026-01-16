@@ -1,0 +1,235 @@
+openapi: 3.0.3
+info:
+  title: Papertrail Webhook Handler API
+  description: |
+    Telegram webhook handler for the Papertrail Invoice Bot.
+
+    This service receives webhook events from Telegram and enqueues processing tasks.
+
+    ## Authentication
+    - The webhook endpoint uses a secret path for security
+    - Internal endpoints (health) are public
+
+    ## Flow
+    1. Telegram sends webhook to `/webhook/{secret}`
+    2. Handler validates and extracts file info
+    3. Creates Cloud Tasks job for worker processing
+  version: "1.0.0"
+  contact:
+    name: Papertrail Team
+
+servers:
+  - url: https://webhook-handler-XXXXX.us-central1.run.app
+    description: Production
+  - url: http://localhost:8080
+    description: Local development
+
+tags:
+  - name: Health
+    description: Health check endpoints
+  - name: Webhook
+    description: Telegram webhook endpoints
+
+paths:
+  /health:
+    get:
+      tags:
+        - Health
+      summary: Health check
+      description: Returns service health status and version
+      operationId: getHealth
+      responses:
+        "200":
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthResponse"
+              example:
+                status: healthy
+                version: abc123
+
+  /webhook/{secretPath}:
+    post:
+      tags:
+        - Webhook
+      summary: Telegram webhook endpoint
+      description: |
+        Receives webhook updates from Telegram Bot API.
+
+        Supported update types:
+        - **Photo messages**: Queued for invoice processing
+        - **Document messages (PDF)**: Queued for invoice processing
+        - **Commands**: /invoice triggers invoice generation flow
+        - **Callback queries**: Forwarded to worker for handling
+      operationId: handleWebhook
+      parameters:
+        - name: secretPath
+          in: path
+          required: true
+          description: Secret webhook path for security
+          schema:
+            type: string
+      requestBody:
+        required: true
+        description: Telegram Update object
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TelegramUpdate"
+      responses:
+        "200":
+          description: Webhook processed successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WebhookResponse"
+              examples:
+                enqueued:
+                  summary: Photo enqueued for processing
+                  value:
+                    ok: true
+                    action: enqueued
+                    taskName: projects/xxx/locations/xxx/queues/invoice-processing/tasks/invoice-123-456
+                ignored:
+                  summary: Non-invoice message ignored
+                  value:
+                    ok: true
+                    action: ignored
+        "401":
+          description: Invalid secret path
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+components:
+  schemas:
+    HealthResponse:
+      type: object
+      required:
+        - status
+        - version
+      properties:
+        status:
+          type: string
+          enum: [healthy]
+          description: Service health status
+        version:
+          type: string
+          description: Git commit SHA or version tag
+
+    WebhookResponse:
+      type: object
+      properties:
+        ok:
+          type: boolean
+          description: Whether the webhook was processed
+        action:
+          type: string
+          enum: [enqueued, ignored, forwarded]
+          description: Action taken for this update
+        taskName:
+          type: string
+          description: Cloud Tasks task name (if enqueued)
+
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+          description: Error message
+
+    TelegramUpdate:
+      type: object
+      description: Telegram Bot API Update object
+      required:
+        - update_id
+      properties:
+        update_id:
+          type: integer
+          description: Unique update identifier
+        message:
+          $ref: "#/components/schemas/TelegramMessage"
+        callback_query:
+          type: object
+          description: Callback query from inline keyboard
+          properties:
+            id:
+              type: string
+            from:
+              $ref: "#/components/schemas/TelegramUser"
+            data:
+              type: string
+
+    TelegramMessage:
+      type: object
+      properties:
+        message_id:
+          type: integer
+        from:
+          $ref: "#/components/schemas/TelegramUser"
+        chat:
+          $ref: "#/components/schemas/TelegramChat"
+        date:
+          type: integer
+          description: Unix timestamp
+        text:
+          type: string
+        photo:
+          type: array
+          items:
+            $ref: "#/components/schemas/TelegramPhotoSize"
+        document:
+          $ref: "#/components/schemas/TelegramDocument"
+
+    TelegramUser:
+      type: object
+      properties:
+        id:
+          type: integer
+        first_name:
+          type: string
+        last_name:
+          type: string
+        username:
+          type: string
+
+    TelegramChat:
+      type: object
+      properties:
+        id:
+          type: integer
+        type:
+          type: string
+          enum: [private, group, supergroup, channel]
+        title:
+          type: string
+
+    TelegramPhotoSize:
+      type: object
+      properties:
+        file_id:
+          type: string
+        file_unique_id:
+          type: string
+        file_size:
+          type: integer
+        width:
+          type: integer
+        height:
+          type: integer
+
+    TelegramDocument:
+      type: object
+      properties:
+        file_id:
+          type: string
+        file_unique_id:
+          type: string
+        file_name:
+          type: string
+        mime_type:
+          type: string
+        file_size:
+          type: integer
