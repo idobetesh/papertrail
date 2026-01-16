@@ -1,0 +1,512 @@
+openapi: 3.0.3
+info:
+  title: Papertrail Worker API
+  description: |
+    Invoice processing worker for the Papertrail Invoice Bot.
+
+    This service processes invoices through the pipeline:
+    1. Download from Telegram
+    2. Upload to Cloud Storage
+    3. Extract data with LLM Vision (Gemini/OpenAI)
+    4. Append to Google Sheets
+    5. Send confirmation to Telegram
+
+    ## Authentication
+    - Processing endpoints are called by Cloud Tasks with OIDC tokens
+    - Health and metrics endpoints are public
+
+    ## Job States
+    | Status | Description |
+    |--------|-------------|
+    | `pending` | Waiting in queue |
+    | `processing` | Currently being processed |
+    | `pending_retry` | Failed, waiting for Cloud Tasks retry |
+    | `processed` | Successfully completed |
+    | `failed` | Failed after max retries |
+    | `pending_decision` | Duplicate detected, awaiting user input |
+  version: "1.0.0"
+  contact:
+    name: Papertrail Team
+
+servers:
+  - url: https://worker-XXXXX.us-central1.run.app
+    description: Production
+  - url: http://localhost:8081
+    description: Local development
+
+tags:
+  - name: Health
+    description: Health and monitoring endpoints
+  - name: Processing
+    description: Invoice processing endpoints (Cloud Tasks)
+  - name: Invoice Generation
+    description: Invoice generation flow endpoints
+  - name: Callbacks
+    description: Telegram callback handling
+
+paths:
+  /health:
+    get:
+      tags:
+        - Health
+      summary: Health check
+      description: Returns service health status and version
+      operationId: getHealth
+      responses:
+        "200":
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthResponse"
+              example:
+                status: healthy
+                version: abc123
+
+  /metrics:
+    get:
+      tags:
+        - Health
+      summary: Get job metrics
+      description: |
+        Returns detailed metrics about job processing:
+        - Counts by status
+        - Health score (0-100)
+        - Recent failures with error details
+        - Jobs pending retry
+      operationId: getMetrics
+      responses:
+        "200":
+          description: Metrics retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MetricsResponse"
+              example:
+                status: healthy
+                healthScore: 95
+                version: abc123
+                timestamp: "2026-01-16T10:30:00Z"
+                counts:
+                  pending: 0
+                  processing: 1
+                  processed: 47
+                  failed: 2
+                  pending_retry: 0
+                  pending_decision: 0
+                totals:
+                  total: 50
+                  successRate: "94.0%"
+                recentFailures: []
+                pendingRetries: []
+        "500":
+          description: Failed to retrieve metrics
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /process:
+    post:
+      tags:
+        - Processing
+      summary: Process an invoice
+      description: |
+        Main invoice processing endpoint called by Cloud Tasks.
+
+        **Pipeline steps:**
+        1. **Download**: Fetch file from Telegram
+        2. **Upload**: Store in Cloud Storage
+        3. **LLM Extract**: Use Gemini/OpenAI Vision to extract data
+        4. **Sheets**: Append row to Google Sheets
+        5. **ACK**: Send confirmation message to Telegram
+
+        **Supports:**
+        - Images (JPG, PNG, etc.)
+        - PDF documents (up to 5 pages)
+      operationId: processInvoice
+      security:
+        - cloudTasks: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TaskPayload"
+            example:
+              chatId: -1001234567890
+              messageId: 42
+              fileId: "AgACAgIAAxkBAAI..."
+              uploaderUsername: "johndoe"
+              uploaderFirstName: "John"
+              chatTitle: "Invoice Group"
+              receivedAt: "2026-01-16T10:30:00Z"
+      responses:
+        "200":
+          description: Processing completed (success or permanent failure)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProcessResponse"
+              examples:
+                processed:
+                  summary: Successfully processed
+                  value:
+                    ok: true
+                    action: processed
+                already_processed:
+                  summary: Duplicate message (idempotent)
+                  value:
+                    ok: true
+                    action: already_processed
+                failed_permanently:
+                  summary: Failed after max retries
+                  value:
+                    ok: false
+                    action: failed_permanently
+                    error: "Unable to parse range: Sheet1!A1:N1"
+        "400":
+          description: Invalid payload
+        "500":
+          description: Processing failed, will retry
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RetryResponse"
+
+  /callback:
+    post:
+      tags:
+        - Callbacks
+      summary: Handle Telegram callback query
+      description: |
+        Processes callback queries from inline keyboard buttons.
+        
+        Used for:
+        - Duplicate invoice decisions (keep both / delete new)
+      operationId: handleCallback
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CallbackPayload"
+      responses:
+        "200":
+          description: Callback processed
+        "400":
+          description: Invalid callback data
+        "500":
+          description: Processing failed
+
+  /invoice/command:
+    post:
+      tags:
+        - Invoice Generation
+      summary: Handle /invoice command
+      description: Starts a new invoice generation session
+      operationId: handleInvoiceCommand
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/InvoiceCommandPayload"
+      responses:
+        "200":
+          description: Command handled
+
+  /invoice/message:
+    post:
+      tags:
+        - Invoice Generation
+      summary: Handle invoice conversation message
+      description: Processes text messages during invoice generation flow (customer name, amount, description)
+      operationId: handleInvoiceMessage
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/InvoiceMessagePayload"
+      responses:
+        "200":
+          description: Message handled
+
+  /invoice/callback:
+    post:
+      tags:
+        - Invoice Generation
+      summary: Handle invoice button callback
+      description: |
+        Processes inline keyboard callbacks during invoice generation:
+        - Document type selection (invoice / invoice-receipt)
+        - Payment method selection
+        - Confirm / Cancel
+      operationId: handleInvoiceCallback
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/InvoiceCallbackPayload"
+      responses:
+        "200":
+          description: Callback handled
+
+  /notify-failure:
+    post:
+      tags:
+        - Processing
+      summary: Send failure notification (testing)
+      description: Manually trigger a failure notification to Telegram
+      operationId: notifyFailure
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - chatId
+                - messageId
+                - lastStep
+                - error
+              properties:
+                chatId:
+                  type: integer
+                messageId:
+                  type: integer
+                lastStep:
+                  type: string
+                  enum: [download, drive, llm, sheets, ack]
+                error:
+                  type: string
+      responses:
+        "200":
+          description: Notification sent
+        "400":
+          description: Missing required fields
+
+components:
+  securitySchemes:
+    cloudTasks:
+      type: http
+      scheme: bearer
+      bearerFormat: OIDC
+      description: Cloud Tasks OIDC token
+
+  schemas:
+    HealthResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [healthy]
+        version:
+          type: string
+
+    MetricsResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [healthy, degraded, unhealthy]
+        healthScore:
+          type: integer
+          minimum: 0
+          maximum: 100
+          description: Overall health score
+        version:
+          type: string
+        timestamp:
+          type: string
+          format: date-time
+        counts:
+          type: object
+          properties:
+            pending:
+              type: integer
+            processing:
+              type: integer
+            processed:
+              type: integer
+            failed:
+              type: integer
+            pending_retry:
+              type: integer
+            pending_decision:
+              type: integer
+        totals:
+          type: object
+          properties:
+            total:
+              type: integer
+            successRate:
+              type: string
+        recentFailures:
+          type: array
+          items:
+            $ref: "#/components/schemas/FailedJob"
+        pendingRetries:
+          type: array
+          items:
+            $ref: "#/components/schemas/FailedJob"
+
+    FailedJob:
+      type: object
+      properties:
+        jobId:
+          type: string
+          example: "-1001234567890_42"
+        lastStep:
+          type: string
+          enum: [download, drive, llm, sheets, ack]
+        lastError:
+          type: string
+        attempts:
+          type: integer
+        updatedAt:
+          type: string
+          format: date-time
+
+    TaskPayload:
+      type: object
+      description: Cloud Task payload for invoice processing
+      required:
+        - chatId
+        - messageId
+        - fileId
+      properties:
+        chatId:
+          type: integer
+          description: Telegram chat ID
+        messageId:
+          type: integer
+          description: Telegram message ID
+        fileId:
+          type: string
+          description: Telegram file ID
+        uploaderUsername:
+          type: string
+        uploaderFirstName:
+          type: string
+        chatTitle:
+          type: string
+        receivedAt:
+          type: string
+          format: date-time
+
+    ProcessResponse:
+      type: object
+      properties:
+        ok:
+          type: boolean
+        action:
+          type: string
+          enum: [processed, already_processed, failed_permanently]
+        error:
+          type: string
+
+    RetryResponse:
+      type: object
+      properties:
+        ok:
+          type: boolean
+          example: false
+        action:
+          type: string
+          example: retry
+        error:
+          type: string
+        retry:
+          type: integer
+          description: Next retry number
+
+    CallbackPayload:
+      type: object
+      required:
+        - callbackQueryId
+        - data
+      properties:
+        callbackQueryId:
+          type: string
+        data:
+          type: string
+          description: JSON-encoded callback data
+        botMessageChatId:
+          type: integer
+        botMessageId:
+          type: integer
+
+    InvoiceCommandPayload:
+      type: object
+      properties:
+        type:
+          type: string
+          enum: [command]
+        chatId:
+          type: integer
+        messageId:
+          type: integer
+        userId:
+          type: integer
+        username:
+          type: string
+        firstName:
+          type: string
+        text:
+          type: string
+          description: Full command text
+        receivedAt:
+          type: string
+          format: date-time
+
+    InvoiceMessagePayload:
+      type: object
+      properties:
+        type:
+          type: string
+          enum: [message]
+        chatId:
+          type: integer
+        messageId:
+          type: integer
+        userId:
+          type: integer
+        username:
+          type: string
+        firstName:
+          type: string
+        text:
+          type: string
+        receivedAt:
+          type: string
+          format: date-time
+
+    InvoiceCallbackPayload:
+      type: object
+      properties:
+        type:
+          type: string
+          enum: [callback]
+        callbackQueryId:
+          type: string
+        chatId:
+          type: integer
+        messageId:
+          type: integer
+        userId:
+          type: integer
+        username:
+          type: string
+        data:
+          type: string
+
+    ErrorResponse:
+      type: object
+      properties:
+        status:
+          type: string
+        error:
+          type: string

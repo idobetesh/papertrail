@@ -2,16 +2,42 @@
  * Telegram API service for downloading files and sending messages
  */
 
-import type { 
-  TelegramFile, 
-  TelegramApiResponse, 
+import type {
+  TelegramFile,
+  TelegramApiResponse,
   DuplicateMatch,
   TelegramInlineKeyboardMarkup,
   DuplicateDecision,
+  TelegramMessage,
 } from '../../../../shared/types';
 import { getConfig } from '../config';
 
 const TELEGRAM_API_BASE = 'https://api.telegram.org';
+
+/**
+ * Helper to POST to Telegram API
+ */
+async function telegramPost<T>(
+  url: string,
+  body: Record<string, unknown>,
+  errorContext: string
+): Promise<T> {
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(body),
+  });
+
+  const data = (await response.json()) as TelegramApiResponse<T>;
+
+  if (!data.ok) {
+    throw new Error(`${errorContext}: ${data.description || 'Unknown error'}`);
+  }
+
+  return data.result as T;
+}
 
 /**
  * Get file info from Telegram
@@ -113,19 +139,7 @@ export async function sendMessage(
     body.reply_markup = options.replyMarkup;
   }
 
-  const response = await fetch(url, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(body),
-  });
-
-  const data = (await response.json()) as TelegramApiResponse<unknown>;
-
-  if (!data.ok) {
-    throw new Error(`Failed to send message: ${data.description || 'Unknown error'}`);
-  }
+  await telegramPost(url, body, 'Failed to send message');
 }
 
 /**
@@ -153,19 +167,7 @@ export async function answerCallbackQuery(
     body.show_alert = options.showAlert;
   }
 
-  const response = await fetch(url, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(body),
-  });
-
-  const data = (await response.json()) as TelegramApiResponse<unknown>;
-
-  if (!data.ok) {
-    throw new Error(`Failed to answer callback: ${data.description || 'Unknown error'}`);
-  }
+  await telegramPost(url, body, 'Failed to answer callback');
 }
 
 /**
@@ -197,31 +199,74 @@ export async function editMessageText(
     body.disable_web_page_preview = options.disableWebPagePreview;
   }
 
+  await telegramPost(url, body, 'Failed to edit message');
+}
+
+/**
+ * Send a document (file) to a chat
+ * Uses multipart/form-data to upload the file buffer
+ */
+export async function sendDocument(
+  chatId: number,
+  document: Buffer,
+  filename: string,
+  options?: {
+    caption?: string;
+    parseMode?: 'HTML' | 'Markdown' | 'MarkdownV2';
+    replyToMessageId?: number;
+  }
+): Promise<TelegramMessage> {
+  const config = getConfig();
+  const url = `${TELEGRAM_API_BASE}/bot${config.telegramBotToken}/sendDocument`;
+
+  // Create FormData for multipart upload
+  const formData = new FormData();
+  formData.append('chat_id', chatId.toString());
+
+  // Create a Blob from the buffer for the document
+  const blob = new Blob([document], { type: 'application/pdf' });
+  formData.append('document', blob, filename);
+
+  if (options?.caption) {
+    formData.append('caption', options.caption);
+  }
+
+  if (options?.parseMode) {
+    formData.append('parse_mode', options.parseMode);
+  }
+
+  if (options?.replyToMessageId) {
+    formData.append('reply_to_message_id', options.replyToMessageId.toString());
+  }
+
   const response = await fetch(url, {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(body),
+    body: formData,
   });
 
-  const data = (await response.json()) as TelegramApiResponse<unknown>;
+  const data = (await response.json()) as TelegramApiResponse<TelegramMessage>;
 
-  if (!data.ok) {
-    throw new Error(`Failed to edit message: ${data.description || 'Unknown error'}`);
+  if (!data.ok || !data.result) {
+    throw new Error(`Failed to send document: ${data.description || 'Unknown error'}`);
   }
+
+  return data.result;
 }
 
 /**
  * Format date as DD/MM/YYYY
  */
 function formatDateForDisplay(isoString: string | null): string {
-  if (!isoString) {return '?';}
-  
+  if (!isoString) {
+    return '?';
+  }
+
   try {
     const date = new Date(isoString);
-    if (isNaN(date.getTime())) {return '?';}
-    
+    if (isNaN(date.getTime())) {
+      return '?';
+    }
+
     const day = date.getDate().toString().padStart(2, '0');
     const month = (date.getMonth() + 1).toString().padStart(2, '0');
     const year = date.getFullYear();
@@ -254,11 +299,7 @@ export function formatSuccessMessage(
 /**
  * Format failure message
  */
-export function formatFailureMessage(
-  messageId: number,
-  lastStep: string,
-  error: string
-): string {
+export function formatFailureMessage(messageId: number, lastStep: string, error: string): string {
   // Truncate error to 100 chars
   const shortError = error.length > 100 ? error.substring(0, 100) + '...' : error;
 

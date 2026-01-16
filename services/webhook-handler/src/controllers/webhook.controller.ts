@@ -39,10 +39,24 @@ export async function handleWebhook(req: Request, res: Response): Promise<void> 
     return;
   }
 
-  // Ignore commands for now (could add /status, /help later)
+  // Handle /invoice command
+  if (telegramService.isInvoiceCommand(update)) {
+    logger.info('Processing /invoice command');
+    await handleInvoiceCommand(update, config, res);
+    return;
+  }
+
+  // Handle other commands (could add /status, /help later)
   if (telegramService.isCommand(update)) {
-    logger.debug('Ignoring command message');
+    logger.debug('Ignoring unknown command message');
     res.status(200).json({ ok: true, action: 'ignored_command' });
+    return;
+  }
+
+  // Handle text messages (might be part of invoice conversation)
+  if (telegramService.isTextMessage(update)) {
+    logger.debug('Processing text message');
+    await handleTextMessage(update, config, res);
     return;
   }
 
@@ -104,7 +118,12 @@ export async function handleWebhook(req: Request, res: Response): Promise<void> 
     }
 
     logger.info(
-      { chatId: payload.chatId, messageId: payload.messageId, uploader: payload.uploaderUsername, fileName: document.file_name },
+      {
+        chatId: payload.chatId,
+        messageId: payload.messageId,
+        uploader: payload.uploaderUsername,
+        fileName: document.file_name,
+      },
       'Processing PDF document'
     );
 
@@ -149,6 +168,37 @@ async function handleCallbackQuery(
     return;
   }
 
+  // Check if this is an invoice-related callback
+  if (telegramService.isInvoiceCallback(callbackPayload.data)) {
+    const invoicePayload = telegramService.extractInvoiceCallbackPayload(update);
+    if (!invoicePayload) {
+      logger.error('Failed to extract invoice callback payload');
+      res.status(400).json({ error: 'Failed to extract invoice callback payload' });
+      return;
+    }
+
+    logger.info(
+      { callbackQueryId: invoicePayload.callbackQueryId },
+      'Enqueueing invoice callback for worker'
+    );
+
+    try {
+      const taskName = await tasksService.enqueueInvoiceCallbackTask(invoicePayload, config);
+      logger.info({ taskName }, 'Invoice callback task enqueued successfully');
+
+      res.status(200).json({
+        ok: true,
+        action: 'invoice_callback_enqueued',
+        task: taskName,
+      });
+    } catch (error) {
+      logger.error({ error }, 'Failed to enqueue invoice callback task');
+      res.status(500).json({ error: 'Failed to enqueue invoice callback task' });
+    }
+    return;
+  }
+
+  // Regular callback (duplicate handling, etc.)
   logger.info(
     { callbackQueryId: callbackPayload.callbackQueryId },
     'Enqueueing callback query for worker'
@@ -166,5 +216,86 @@ async function handleCallbackQuery(
   } catch (error) {
     logger.error({ error }, 'Failed to enqueue callback task');
     res.status(500).json({ error: 'Failed to enqueue callback task' });
+  }
+}
+
+/**
+ * Handle /invoice command
+ */
+async function handleInvoiceCommand(
+  update: ReturnType<typeof telegramService.parseUpdate>,
+  config: ReturnType<typeof getConfig>,
+  res: Response
+): Promise<void> {
+  if (!update) {
+    res.status(400).json({ error: 'Invalid update' });
+    return;
+  }
+
+  const payload = telegramService.extractInvoiceCommandPayload(update);
+  if (!payload) {
+    logger.error('Failed to extract invoice command payload');
+    res.status(400).json({ error: 'Failed to extract invoice command payload' });
+    return;
+  }
+
+  logger.info(
+    { chatId: payload.chatId, userId: payload.userId },
+    'Enqueueing invoice command for worker'
+  );
+
+  try {
+    const taskName = await tasksService.enqueueInvoiceCommandTask(payload, config);
+    logger.info({ taskName }, 'Invoice command task enqueued successfully');
+
+    res.status(200).json({
+      ok: true,
+      action: 'invoice_command_enqueued',
+      task: taskName,
+    });
+  } catch (error) {
+    logger.error({ error }, 'Failed to enqueue invoice command task');
+    res.status(500).json({ error: 'Failed to enqueue invoice command task' });
+  }
+}
+
+/**
+ * Handle text message (might be part of invoice conversation)
+ */
+async function handleTextMessage(
+  update: ReturnType<typeof telegramService.parseUpdate>,
+  config: ReturnType<typeof getConfig>,
+  res: Response
+): Promise<void> {
+  if (!update) {
+    res.status(400).json({ error: 'Invalid update' });
+    return;
+  }
+
+  const payload = telegramService.extractInvoiceMessagePayload(update);
+  if (!payload) {
+    // Not a valid message for invoice flow
+    logger.debug('Text message not suitable for invoice flow');
+    res.status(200).json({ ok: true, action: 'ignored_text' });
+    return;
+  }
+
+  logger.info(
+    { chatId: payload.chatId, userId: payload.userId },
+    'Enqueueing invoice message for worker'
+  );
+
+  try {
+    const taskName = await tasksService.enqueueInvoiceMessageTask(payload, config);
+    logger.info({ taskName }, 'Invoice message task enqueued successfully');
+
+    res.status(200).json({
+      ok: true,
+      action: 'invoice_message_enqueued',
+      task: taskName,
+    });
+  } catch (error) {
+    logger.error({ error }, 'Failed to enqueue invoice message task');
+    res.status(500).json({ error: 'Failed to enqueue invoice message task' });
   }
 }

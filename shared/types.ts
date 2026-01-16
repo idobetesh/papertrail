@@ -101,7 +101,13 @@ export interface TaskPayload {
 // Firestore Job Schema
 // ============================================================================
 
-export type JobStatus = 'pending' | 'processing' | 'processed' | 'failed' | 'pending_decision';
+export type JobStatus =
+  | 'pending'
+  | 'processing'
+  | 'processed'
+  | 'failed'
+  | 'pending_decision'
+  | 'pending_retry';
 export type PipelineStep = 'download' | 'drive' | 'llm' | 'sheets' | 'ack';
 
 export interface InvoiceJob {
@@ -256,3 +262,184 @@ export interface WorkerConfig {
   sheetId: string;
   serviceAccountEmail: string;
 }
+
+// ============================================================================
+// Invoice Generation Types
+// ============================================================================
+
+/**
+ * Invoice document types
+ * - invoice: חשבונית (invoice only, payment pending)
+ * - invoice_receipt: חשבונית-קבלה (invoice + receipt, payment received)
+ */
+export type InvoiceDocumentType = 'invoice' | 'invoice_receipt';
+
+/**
+ * Invoice generation session status
+ */
+export type InvoiceSessionStatus =
+  | 'select_type' // Waiting for user to select document type
+  | 'awaiting_details' // Waiting for customer name, amount, description
+  | 'awaiting_payment' // Waiting for payment method selection
+  | 'confirming'; // Showing confirmation, waiting for approve/cancel
+
+/**
+ * Payment methods (Hebrew)
+ */
+export type PaymentMethod = 'מזומן' | 'ביט' | 'PayBox' | 'העברה' | 'אשראי' | 'צ׳ק';
+
+/**
+ * Invoice generation session stored in Firestore
+ * Document ID: `${chatId}_${userId}`
+ */
+export interface InvoiceSession {
+  status: InvoiceSessionStatus;
+  documentType?: InvoiceDocumentType;
+  customerName?: string;
+  customerTaxId?: string;
+  description?: string;
+  amount?: number;
+  paymentMethod?: PaymentMethod;
+  date?: string; // YYYY-MM-DD format
+  createdAt: Date | { toMillis: () => number };
+  updatedAt: Date | { toMillis: () => number };
+}
+
+/**
+ * Generated invoice audit log stored in Firestore
+ * Document ID: invoice number (e.g., "20261")
+ */
+export interface GeneratedInvoice {
+  invoiceNumber: string;
+  documentType: InvoiceDocumentType;
+  customerName: string;
+  customerTaxId?: string;
+  description: string;
+  amount: number;
+  paymentMethod: PaymentMethod;
+  date: string; // DD/MM/YYYY format
+  generatedAt: Date | { toMillis: () => number };
+  generatedBy: {
+    telegramUserId: number;
+    username: string;
+    chatId: number;
+  };
+  storagePath: string;
+  storageUrl: string;
+}
+
+/**
+ * Invoice counter stored in Firestore
+ * Document ID: year (e.g., "2026")
+ */
+export interface InvoiceCounter {
+  counter: number;
+  lastUpdated: Date | { toMillis: () => number };
+}
+
+/**
+ * Cloud Task payload for invoice command processing
+ */
+export interface InvoiceCommandPayload {
+  type: 'command';
+  chatId: number;
+  messageId: number;
+  userId: number;
+  username: string;
+  firstName: string;
+  text: string; // Full command text (may include arguments)
+  receivedAt: string; // ISO timestamp
+}
+
+/**
+ * Cloud Task payload for invoice conversation messages
+ */
+export interface InvoiceMessagePayload {
+  type: 'message';
+  chatId: number;
+  messageId: number;
+  userId: number;
+  username: string;
+  firstName: string;
+  text: string;
+  receivedAt: string;
+}
+
+/**
+ * Cloud Task payload for invoice button callbacks
+ */
+export interface InvoiceCallbackPayload {
+  type: 'callback';
+  callbackQueryId: string;
+  chatId: number;
+  messageId: number;
+  userId: number;
+  username: string;
+  data: string; // Callback data from button
+}
+
+/**
+ * Union type for all invoice-related task payloads
+ */
+export type InvoiceTaskPayload =
+  | InvoiceCommandPayload
+  | InvoiceMessagePayload
+  | InvoiceCallbackPayload;
+
+/**
+ * Business configuration for invoice generation
+ */
+export interface BusinessConfig {
+  business: {
+    name: string;
+    taxId: string;
+    taxStatus: string;
+    email: string;
+    phone: string;
+    address: string;
+  };
+  invoice: {
+    digitalSignatureText: string;
+    generatedByText: string;
+  };
+}
+
+/**
+ * Data required to generate an invoice PDF
+ */
+export interface InvoiceData {
+  invoiceNumber: string;
+  documentType: InvoiceDocumentType;
+  customerName: string;
+  customerTaxId?: string;
+  description: string;
+  amount: number;
+  paymentMethod: PaymentMethod;
+  date: string; // DD/MM/YYYY format
+}
+
+/**
+ * Generated Invoices sheet row
+ */
+export interface GeneratedInvoiceSheetRow {
+  invoice_number: string;
+  document_type: string;
+  date: string;
+  customer_name: string;
+  customer_tax_id: string;
+  description: string;
+  amount: number;
+  payment_method: string;
+  generated_by: string;
+  generated_at: string;
+  pdf_link: string;
+}
+
+/**
+ * Invoice callback action types
+ */
+export type InvoiceCallbackAction =
+  | { action: 'select_type'; documentType: InvoiceDocumentType }
+  | { action: 'select_payment'; paymentMethod: PaymentMethod }
+  | { action: 'confirm' }
+  | { action: 'cancel' };

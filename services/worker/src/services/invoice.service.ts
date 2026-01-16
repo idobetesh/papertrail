@@ -313,8 +313,9 @@ export async function processInvoice(payload: TaskPayload): Promise<ProcessingRe
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     log.error({ step: currentStep, error: errorMessage }, 'Processing failed');
 
-    // Mark job as failed
-    await storeService.markJobFailed(chatId, messageId, currentStep, errorMessage);
+    // Mark job as pending retry (NOT failed - that's only after max retries)
+    // This allows Cloud Tasks retries to reclaim the job
+    await storeService.markJobPendingRetry(chatId, messageId, currentStep, errorMessage);
 
     // Throw to trigger Cloud Tasks retry
     throw error;

@@ -55,4 +55,25 @@ coverage/
 service-account*.json
 secrets/
 
-future
+# Invoice generation config (contains business details)
+services/worker/invoice-config.json
+
+# Customer configs (contains business details)
+services/worker/configs/*.json
+!services/worker/configs/.gitkeep
+
+# Generated sample invoices (keep demo samples, ignore personal ones)
+services/worker/scripts/output/*
+!services/worker/scripts/output/.gitkeep
+!services/worker/scripts/output/sample-invoice.pdf
+!services/worker/scripts/output/sample-invoice.html
+
+# Customer onboarding guide (internal documentation)
+docs/CUSTOMER_ONBOARDING.md
+
+# Future planning docs (internal)
+docs/future/
+
+# Business logos (contains branding)
+docs/assets/invoice-logo.jpeg
+docs/assets/customer-logos/

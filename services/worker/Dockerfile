@@ -43,11 +43,21 @@ FROM node:24-slim
 
 ARG APP_VERSION=development
 
-# Install GraphicsMagick for PDF processing
+# Install GraphicsMagick for PDF processing, Chromium for Puppeteer, and Hebrew fonts
 RUN apt-get update && \
-    apt-get install -y graphicsmagick && \
+    apt-get install -y \
+        graphicsmagick \
+        chromium \
+        fonts-noto-cjk \
+        fonts-freefont-ttf \
+        fonts-dejavu-core \
+        --no-install-recommends && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
+
+# Configure Puppeteer to use system Chromium
+ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true \
+    PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium
 
 # Add security: run as non-root user
 RUN groupadd -r nodejs && useradd -r -g nodejs nodejs

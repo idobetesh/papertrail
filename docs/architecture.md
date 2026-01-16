@@ -11,7 +11,7 @@
                          ▼                 ▼                    ▼
                    ┌───────────┐    ┌───────────┐    ┌────────────────┐
                    │  Storage  │    │  Sheets   │    │   Firestore    │
-                   └───────────┘    └───────────┘    │ (deduplication)│
+                   └───────────┘    └───────────┘    │ (jobs + config)│
                                                      └────────────────┘
 ```
 
@@ -20,9 +20,23 @@
 | Service | Role |
 |---------|------|
 | `webhook-handler` | Receives Telegram webhooks, enqueues tasks |
-| `worker` | Downloads images, calls LLM, updates Sheets |
+| `worker` | Downloads images, calls LLM, generates PDFs, updates Sheets |
 | Cloud Tasks | Retry with backoff, exactly-once delivery |
-| Firestore | Idempotency tracking |
+| Firestore | Job tracking, business config, invoice counters |
+
+## Invoice Generation
+
+```
+/invoice → Session Flow → PDF Generation → Cloud Storage → Telegram
+                              ↓
+                    Firestore (config by chat ID)
+```
+
+| Component | Purpose |
+|-----------|---------|
+| `config.service` | Per-customer business config |
+| `pdf.generator` | Puppeteer-based PDF rendering |
+| `counter.service` | Atomic invoice numbering |
 
 ## Service Accounts
 
