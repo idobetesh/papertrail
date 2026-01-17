@@ -1,50 +1,23 @@
 /**
  * PDF Generator service
- * Uses Puppeteer to render HTML to PDF
+ * Uses Playwright to render HTML to PDF
+ * Playwright handles browser binaries and crashpad better than Puppeteer in Docker
  */
 
-import puppeteer from 'puppeteer-core';
-import * as fs from 'fs';
-import * as path from 'path';
+import { chromium } from 'playwright';
 import type { InvoiceData, BusinessConfig } from '../../../../../shared/types';
 import { buildInvoiceHTML } from './template';
 import { getBusinessConfig, getLogoBase64 } from './config.service';
 import logger from '../../logger';
 
-// Puppeteer executable path (set via environment variable in Docker)
-const CHROME_PATH = process.env.PUPPETEER_EXECUTABLE_PATH || '/usr/bin/chromium';
-
-// Crashpad database directory - ensure it exists and is writable
-const CRASHPAD_DIR = process.env.CRASHPAD_DATABASE_DIR || '/app/.crashpad';
-const CRASHPAD_DB_DIR = path.join(CRASHPAD_DIR, 'database');
-
-// Ensure crashpad directory exists (called before browser launch)
-function ensureCrashpadDirectory(): void {
-  try {
-    if (!fs.existsSync(CRASHPAD_DIR)) {
-      fs.mkdirSync(CRASHPAD_DIR, { recursive: true });
-    }
-    if (!fs.existsSync(CRASHPAD_DB_DIR)) {
-      fs.mkdirSync(CRASHPAD_DB_DIR, { recursive: true });
-    }
-  } catch (error) {
-    // Log but don't fail - Chrome will handle it
-    logger.warn({ error, crashpadDir: CRASHPAD_DIR }, 'Failed to create crashpad directory');
-  }
-}
-
 // Chromium launch arguments for Docker/headless environment
-// Note: Using multiple approaches to disable crashpad handler to avoid "chrome_crashpad_handler: --database is required" error
+// Playwright handles crashpad and browser setup internally, so we need fewer flags
 const CHROMIUM_ARGS = [
   '--no-sandbox',
   '--disable-dev-shm-usage',
   '--disable-gpu',
   '--disable-software-rasterizer',
   '--disable-crash-reporter',
-  '--disable-breakpad', // Alternative crash reporter flag
-  '--disable-crashpad', // Disable crashpad handler
-  `--crash-dumps-dir=${CRASHPAD_DIR}`, // Provide crashpad database directory (writable by non-root user)
-  '--disable-background-networking', // Disable background networking (can trigger crashpad)
   '--disable-component-update',
   '--disable-domain-reliability',
   '--disable-features=AudioServiceOutOfProcess,IsolateOrigins,site-per-process',
@@ -52,19 +25,13 @@ const CHROMIUM_ARGS = [
   '--disable-site-isolation-trials',
   '--disable-speech-api',
   '--disable-web-security',
-  '--disk-cache-size=33554432',
-  '--enable-features=SharedArrayBuffer',
   '--hide-scrollbars',
-  '--ignore-gpu-blocklist',
-  '--in-process-gpu',
   '--mute-audio',
   '--no-default-browser-check',
   '--no-pings',
   '--no-first-run',
-  '--no-zygote',
   '--use-gl=swiftshader',
   '--window-size=1920,1080',
-  // Note: Removed --single-process as it can cause crashpad handler issues
   '--font-render-hinting=none',
 ];
 
@@ -85,10 +52,9 @@ export async function generateInvoicePDF(data: InvoiceData): Promise<Buffer> {
   let browser = null;
 
   try {
-    // Launch browser
-    // Note: Crashpad handler is replaced with dummy script in Dockerfile to prevent --database errors
-    browser = await puppeteer.launch({
-      executablePath: CHROME_PATH,
+    // Launch browser using Playwright
+    // Playwright handles crashpad and browser setup internally
+    browser = await chromium.launch({
       headless: true,
       args: CHROMIUM_ARGS,
     });
@@ -103,7 +69,7 @@ export async function generateInvoicePDF(data: InvoiceData): Promise<Buffer> {
 
     // Set content with wait for fonts to load
     await page.setContent(html, {
-      waitUntil: 'networkidle0',
+      waitUntil: 'networkidle',
     });
 
     log.debug('HTML content loaded');
@@ -122,8 +88,8 @@ export async function generateInvoicePDF(data: InvoiceData): Promise<Buffer> {
 
     log.info({ pdfSize: pdfBuffer.length }, 'PDF generated successfully');
 
-    // Convert Uint8Array to Buffer
-    return Buffer.from(pdfBuffer);
+    // Playwright returns Buffer directly
+    return pdfBuffer;
   } catch (error) {
     log.error({ error }, 'Failed to generate PDF');
     throw new Error(
@@ -149,16 +115,11 @@ export async function generateInvoicePDFWithConfig(
   const log = logger.child({ invoiceNumber: data.invoiceNumber });
   log.info('Starting PDF generation with custom config');
 
-  // Ensure crashpad directory exists before launching browser
-  ensureCrashpadDirectory();
-
   let browser = null;
 
   try {
-    // Launch browser
-    // Note: Crashpad handler is replaced with dummy script in Dockerfile to prevent --database errors
-    browser = await puppeteer.launch({
-      executablePath: CHROME_PATH,
+    // Launch browser using Playwright
+    browser = await chromium.launch({
       headless: true,
       args: CHROMIUM_ARGS,
     });
@@ -173,7 +134,7 @@ export async function generateInvoicePDFWithConfig(
 
     // Set content with wait for fonts to load
     await page.setContent(html, {
-      waitUntil: 'networkidle0',
+      waitUntil: 'networkidle',
     });
 
     log.debug('HTML content loaded');
@@ -192,8 +153,8 @@ export async function generateInvoicePDFWithConfig(
 
     log.info({ pdfSize: pdfBuffer.length }, 'PDF generated successfully');
 
-    // Convert Uint8Array to Buffer
-    return Buffer.from(pdfBuffer);
+    // Playwright returns Buffer directly
+    return pdfBuffer;
   } catch (error) {
     log.error({ error }, 'Failed to generate PDF');
     throw new Error(
@@ -208,14 +169,13 @@ export async function generateInvoicePDFWithConfig(
 }
 
 /**
- * Check if Puppeteer/Chrome is available
+ * Check if Playwright/Chromium is available
  * Useful for health checks
  */
-export async function isPuppeteerAvailable(): Promise<boolean> {
+export async function isBrowserAvailable(): Promise<boolean> {
   let browser = null;
   try {
-    browser = await puppeteer.launch({
-      executablePath: CHROME_PATH,
+    browser = await chromium.launch({
       headless: true,
       args: CHROMIUM_ARGS,
     });
