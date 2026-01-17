@@ -57,10 +57,12 @@ RUN apt-get update && \
     rm -rf /var/lib/apt/lists/*
 
 # Configure Puppeteer to use system Chromium and disable crash reporting
+# Set crashpad database directory to avoid "chrome_crashpad_handler: --database is required" error
 ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true \
     PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium \
     CHROME_DEVEL_SANDBOX=/usr/lib/chromium/chrome-sandbox \
-    CHROMIUM_FLAGS="--disable-crash-reporter --disable-gpu"
+    CHROMIUM_FLAGS="--disable-crash-reporter --disable-gpu" \
+    CRASHPAD_DATABASE_DIR=/app/.crashpad
 
 # Add security: run as non-root user
 RUN groupadd -r nodejs && useradd -r -g nodejs nodejs
@@ -78,6 +80,12 @@ RUN --mount=type=cache,target=/root/.npm \
 
 # Copy built application
 COPY --from=builder /app/services/worker/dist ./dist
+
+# Create crashpad directory for Chromium (writable by non-root user)
+# The crashpad handler needs a database directory - create it with proper permissions
+RUN mkdir -p /app/.crashpad/database && \
+    chown -R nodejs:nodejs /app/.crashpad && \
+    chmod -R 755 /app/.crashpad
 
 # Change ownership to non-root user
 RUN chown -R nodejs:nodejs /app
