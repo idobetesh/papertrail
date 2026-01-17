@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "description": "Telegram webhook handler for Papertrail Invoice Bot",
   "main": "dist/index.js",
+  "author": "Ido Betesh",
   "scripts": {
     "build": "tsc",
     "start": "node dist/index.js",

@@ -5,7 +5,7 @@ const tsparser = require('@typescript-eslint/parser');
 
 module.exports = [
   {
-    ignores: ['**/dist/**', '**/node_modules/**', '**/*.js', '!eslint.config.js'],
+    ignores: ['**/dist/**', '**/node_modules/**', '**/*.js', '!eslint.config.js', 'tools/admin/public/**'],
   },
   {
     files: ['**/*.ts'],
