@@ -13,6 +13,7 @@ import logger from '../../logger';
 const CHROME_PATH = process.env.PUPPETEER_EXECUTABLE_PATH || '/usr/bin/chromium';
 
 // Chromium launch arguments for Docker/headless environment
+// Note: Providing crash-dumps-dir instead of disabling crashpad to avoid "chrome_crashpad_handler: --database is required" error
 const CHROMIUM_ARGS = [
   '--no-sandbox',
   '--disable-dev-shm-usage',
@@ -20,6 +21,7 @@ const CHROMIUM_ARGS = [
   '--disable-software-rasterizer',
   '--disable-crash-reporter',
   '--disable-breakpad', // Alternative crash reporter flag
+  '--crash-dumps-dir=/tmp', // Provide crashpad database directory (fixes "chrome_crashpad_handler: --database is required" error)
   '--disable-component-update',
   '--disable-domain-reliability',
   '--disable-features=AudioServiceOutOfProcess,IsolateOrigins,site-per-process',

@@ -70,7 +70,7 @@ export function buildInvoiceHTML(
     }
     
     body {
-      font-family: 'Heebo', Arial, sans-serif;
+      font-family: 'Heebo', 'Arial', 'DejaVu Sans', 'Liberation Sans', sans-serif;
       direction: rtl;
       padding: 40px;
       max-width: 800px;
