@@ -54,7 +54,11 @@ RUN apt-get update && \
         fonts-dejavu-core \
         --no-install-recommends && \
     apt-get clean && \
-    rm -rf /var/lib/apt/lists/*
+    rm -rf /var/lib/apt/lists/* && \
+    # Create a dummy crashpad handler that accepts --database flag to prevent Chrome from failing
+    mv /usr/lib/chromium/chrome_crashpad_handler /usr/lib/chromium/chrome_crashpad_handler.orig 2>/dev/null || true && \
+    printf '#!/bin/sh\n# Dummy crashpad handler - accepts all flags and exits successfully\nexit 0\n' > /usr/lib/chromium/chrome_crashpad_handler && \
+    chmod +x /usr/lib/chromium/chrome_crashpad_handler
 
 # Configure Puppeteer to use system Chromium and disable crash reporting
 # Set crashpad database directory to avoid "chrome_crashpad_handler: --database is required" error
