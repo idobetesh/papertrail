@@ -70,7 +70,7 @@ export function buildInvoiceHTML(
     }
     
     body {
-      font-family: 'Heebo', Arial, sans-serif;
+      font-family: 'Heebo', 'Arial', 'DejaVu Sans', 'Liberation Sans', sans-serif;
       direction: rtl;
       padding: 40px;
       max-width: 800px;
@@ -79,6 +79,13 @@ export function buildInvoiceHTML(
       line-height: 1.6;
       color: #333;
       background: #fff;
+    }
+    
+    /* Fallback for when Google Fonts doesn't load */
+    @font-face {
+      font-family: 'Heebo';
+      src: local('Arial');
+      font-weight: 300 700;
     }
     
     .header {
