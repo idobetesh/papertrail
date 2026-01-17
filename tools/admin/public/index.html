@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Papertrail Admin Tool</title>
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+  <link rel="alternate icon" href="/favicon.ico">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="container">
+    <!-- Status Snapshot -->
+    <div class="status-snapshot" id="status-snapshot">
+      <div class="status-loading">
+        <div class="spinner-small"></div>
+        <span>Loading status...</span>
+      </div>
+    </div>
+
+    <header class="header">
+      <div class="header-content">
+        <div class="header-title">
+          <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
+          </svg>
+          <h1>Papertrail Admin</h1>
+        </div>
+        <div class="warning-badge">
+          <svg class="icon-small" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+          </svg>
+          <span>Local Only</span>
+        </div>
+      </div>
+      <p class="warning-text">⚠️ Powerful admin tool - Use with extreme caution!</p>
+    </header>
+
+    <div class="tabs-container">
+      <div class="tabs">
+        <button class="tab-button active" data-tab="firestore">
+          <svg class="icon-inline" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M4 7h16M4 12h16M4 17h16"/>
+          </svg>
+          <span>Firestore</span>
+        </button>
+        <button class="tab-button" data-tab="storage">
+          <svg class="icon-inline" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/>
+            <polyline points="3.27 6.96 12 12.01 20.73 6.96"/>
+            <line x1="12" y1="22.08" x2="12" y2="12"/>
+          </svg>
+          <span>Cloud Storage</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- Firestore Tab -->
+    <div id="firestore-tab" class="tab-content active">
+      <div class="card">
+        <div class="card-header">
+          <h2>
+            <svg class="icon-inline" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M4 7h16M4 12h16M4 17h16"/>
+            </svg>
+            Collections
+          </h2>
+        </div>
+        <div class="card-body">
+          <div class="controls">
+            <div class="input-group">
+              <label for="collection-select">Collection</label>
+              <select id="collection-select" class="modern-select">
+                <option value="">Select a collection...</option>
+              </select>
+            </div>
+            <button id="load-collection-btn" class="btn btn-primary">
+              <svg class="icon-inline" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polyline points="23 4 23 10 17 10"/>
+                <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/>
+              </svg>
+              <span>Load</span>
+            </button>
+            <button id="refresh-collection-btn" class="btn btn-secondary" style="display: none;">
+              <svg class="icon-inline" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polyline points="23 4 23 10 17 10"/>
+                <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/>
+              </svg>
+              <span>Refresh</span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <h2>
+            <svg class="icon-inline" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+              <polyline points="14 2 14 8 20 8"/>
+              <line x1="16" y1="13" x2="8" y2="13"/>
+              <line x1="16" y1="17" x2="8" y2="17"/>
+              <polyline points="10 9 9 9 8 9"/>
+            </svg>
+            Documents
+          </h2>
+          <div class="bulk-actions" id="bulk-actions-firestore" style="display: none;">
+            <span class="selected-badge" id="selected-count">0 selected</span>
+            <button id="delete-selected-firestore" class="btn btn-danger">
+              <svg class="icon-inline" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polyline points="3 6 5 6 21 6"/>
+                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+              </svg>
+              <span>Delete Selected</span>
+            </button>
+            <button id="clear-selection-firestore" class="btn btn-ghost">Clear</button>
+          </div>
+        </div>
+        <div class="card-body">
+          <div id="documents-container">
+            <div class="empty-state">
+              <svg class="empty-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                <polyline points="14 2 14 8 20 8"/>
+              </svg>
+              <p>Select a collection to view documents</p>
+            </div>
+          </div>
+          <div id="pagination-firestore" class="pagination"></div>
+        </div>
+      </div>
+
+      <div class="card" id="document-details-section" style="display: none;">
+        <div class="card-header">
+          <h2>
+            <svg class="icon-inline" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="10"/>
+              <line x1="12" y1="16" x2="12" y2="12"/>
+              <line x1="12" y1="8" x2="12.01" y2="8"/>
+            </svg>
+            Document Details
+          </h2>
+        </div>
+        <div class="card-body">
+          <div id="document-details"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Storage Tab -->
+    <div id="storage-tab" class="tab-content">
+      <div class="card">
+        <div class="card-header">
+          <h2>
+            <svg class="icon-inline" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/>
+            </svg>
+            Buckets
+          </h2>
+        </div>
+        <div class="card-body">
+          <div class="controls">
+            <div class="input-group">
+              <label for="bucket-select">Bucket</label>
+              <select id="bucket-select" class="modern-select">
+                <option value="">Select a bucket...</option>
+              </select>
+            </div>
+            <div class="input-group">
+              <label for="prefix-filter">Prefix Filter</label>
+              <input type="text" id="prefix-filter" class="modern-input" placeholder="e.g., '2026/'">
+            </div>
+            <button id="load-bucket-btn" class="btn btn-primary">
+              <svg class="icon-inline" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polyline points="23 4 23 10 17 10"/>
+                <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/>
+              </svg>
+              <span>Load</span>
+            </button>
+            <button id="refresh-bucket-btn" class="btn btn-secondary" style="display: none;">
+              <svg class="icon-inline" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polyline points="23 4 23 10 17 10"/>
+                <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/>
+              </svg>
+              <span>Refresh</span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <h2>
+            <svg class="icon-inline" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/>
+            </svg>
+            Objects
+          </h2>
+          <div class="bulk-actions" id="bulk-actions-storage" style="display: none;">
+            <span class="selected-badge" id="selected-count-storage">0 selected</span>
+            <button id="delete-selected-storage" class="btn btn-danger">
+              <svg class="icon-inline" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polyline points="3 6 5 6 21 6"/>
+                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+              </svg>
+              <span>Delete Selected</span>
+            </button>
+            <button id="clear-selection-storage" class="btn btn-ghost">Clear</button>
+          </div>
+        </div>
+        <div class="card-body">
+          <div id="objects-container">
+            <div class="empty-state">
+              <svg class="empty-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/>
+              </svg>
+              <p>Select a bucket to view objects</p>
+            </div>
+          </div>
+          <div id="pagination-storage" class="pagination"></div>
+        </div>
+      </div>
+
+      <div class="card" id="object-details-section" style="display: none;">
+        <div class="card-header">
+          <h2>
+            <svg class="icon-inline" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="10"/>
+              <line x1="12" y1="16" x2="12" y2="12"/>
+              <line x1="12" y1="8" x2="12.01" y2="8"/>
+            </svg>
+            Object Details
+          </h2>
+        </div>
+        <div class="card-body">
+          <div id="object-details"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Confirmation Modal -->
+  <div id="confirm-modal" class="modal">
+    <div class="modal-backdrop" onclick="document.getElementById('confirm-modal').classList.remove('show')"></div>
+    <div class="modal-content">
+      <div class="modal-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+        </svg>
+      </div>
+      <h3>Confirm Deletion</h3>
+      <p id="confirm-message"></p>
+      <div class="modal-actions">
+        <button id="confirm-no" class="btn btn-ghost">Cancel</button>
+        <button id="confirm-yes" class="btn btn-danger">
+          <svg class="icon-inline" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polyline points="3 6 5 6 21 6"/>
+            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+          </svg>
+          <span>Delete</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Loading Overlay -->
+  <div id="loading-overlay" class="loading-overlay" style="display: none;">
+    <div class="spinner"></div>
+    <p>Loading...</p>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
