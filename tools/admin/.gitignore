@@ -1,0 +1,31 @@
+# Environment variables (may contain ADMIN_PASSWORD)
+.env
+.env.local
+.env.*.local
+*.env
+
+# GCP Credentials (if using service account JSON)
+*.json
+!package.json
+!package-lock.json
+!tsconfig.json
+!nodemon.json
+service-account*.json
+*-credentials.json
+application_default_credentials.json
+
+# GCP Application Default Credentials cache
+.gcloud/
+.config/gcloud/
+
+# Build output
+dist/
+*.js.map
+
+# Logs
+*.log
+npm-debug.log*
+
+# OS
+.DS_Store
+Thumbs.db

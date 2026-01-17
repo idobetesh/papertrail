@@ -3,14 +3,17 @@
   "version": "1.0.0",
   "description": "Serverless Telegram invoice processing bot",
   "private": true,
+  "author": "Ido Betesh",
   "scripts": {
     "prepare": "husky",
-    "lint": "npm run lint:webhook && npm run lint:worker",
+    "lint": "npm run lint:webhook && npm run lint:worker && npm run lint:admin",
     "lint:webhook": "cd services/webhook-handler && npm run lint",
     "lint:worker": "cd services/worker && npm run lint",
-    "lint:fix": "npm run lint:fix:webhook && npm run lint:fix:worker",
+    "lint:admin": "cd tools/admin && npm run lint",
+    "lint:fix": "npm run lint:fix:webhook && npm run lint:fix:worker && npm run lint:fix:admin",
     "lint:fix:webhook": "cd services/webhook-handler && npm run lint:fix",
     "lint:fix:worker": "cd services/worker && npm run lint:fix",
+    "lint:fix:admin": "cd tools/admin && npm run lint:fix",
     "build": "npm run build:webhook && npm run build:worker",
     "build:webhook": "cd services/webhook-handler && npm run build",
     "build:worker": "cd services/worker && npm run build",
@@ -19,7 +22,8 @@
   "lint-staged": {
     "services/webhook-handler/**/*.ts": ["eslint --fix", "prettier --write"],
     "services/worker/**/*.ts": ["eslint --fix", "prettier --write"],
-    "shared/**/*.ts": ["eslint --fix", "prettier --write"]
+    "shared/**/*.ts": ["eslint --fix", "prettier --write"],
+    "tools/admin/**/*.ts": ["eslint --fix", "prettier --write"]
   },
   "devDependencies": {
     "@eslint/js": "^9.0.0",
