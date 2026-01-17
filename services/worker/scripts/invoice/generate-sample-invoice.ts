@@ -5,7 +5,7 @@
 
 import * as fs from 'fs';
 import * as path from 'path';
-import puppeteer from 'puppeteer-core';
+import { chromium } from 'playwright';
 import { buildInvoiceHTML } from '../../src/services/invoice-generator/template';
 import type { InvoiceData, BusinessConfig } from '../../../../shared/types';
 
@@ -57,36 +57,11 @@ async function generateSampleInvoice(): Promise<void> {
   fs.writeFileSync(htmlPath, html);
   console.log(`📄 HTML saved to: ${htmlPath}`);
 
-  // Try to find Chrome/Chromium
-  const chromePaths = [
-    '/usr/bin/chromium',
-    '/usr/bin/chromium-browser',
-    '/usr/bin/google-chrome',
-    '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
-    '/Applications/Chromium.app/Contents/MacOS/Chromium',
-  ];
+  console.log('🌐 Using Playwright Chromium (auto-installed)');
 
-  let chromePath: string | undefined;
-  for (const p of chromePaths) {
-    if (fs.existsSync(p)) {
-      chromePath = p;
-      break;
-    }
-  }
-
-  if (!chromePath) {
-    console.log(
-      '\n⚠️  Chrome/Chromium not found. HTML file saved - open it in a browser to preview.'
-    );
-    console.log('   To generate PDF, install Chrome or set PUPPETEER_EXECUTABLE_PATH');
-    return;
-  }
-
-  console.log(`🌐 Using browser: ${chromePath}`);
-
-  // Launch browser
-  const browser = await puppeteer.launch({
-    executablePath: chromePath,
+  // Launch browser using Playwright
+  // Playwright manages its own Chromium browser installation
+  const browser = await chromium.launch({
     headless: true,
     args: ['--no-sandbox', '--disable-setuid-sandbox'],
   });
@@ -95,7 +70,7 @@ async function generateSampleInvoice(): Promise<void> {
     const page = await browser.newPage();
 
     // Set content
-    await page.setContent(html, { waitUntil: 'networkidle0' });
+    await page.setContent(html, { waitUntil: 'networkidle' });
 
     // Generate PDF
     const pdfBuffer = await page.pdf({
