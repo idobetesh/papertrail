@@ -86,6 +86,7 @@ export async function generateInvoicePDF(data: InvoiceData): Promise<Buffer> {
 
   try {
     // Launch browser
+    // Note: Crashpad handler is replaced with dummy script in Dockerfile to prevent --database errors
     browser = await puppeteer.launch({
       executablePath: CHROME_PATH,
       headless: true,
@@ -155,6 +156,7 @@ export async function generateInvoicePDFWithConfig(
 
   try {
     // Launch browser
+    // Note: Crashpad handler is replaced with dummy script in Dockerfile to prevent --database errors
     browser = await puppeteer.launch({
       executablePath: CHROME_PATH,
       headless: true,
