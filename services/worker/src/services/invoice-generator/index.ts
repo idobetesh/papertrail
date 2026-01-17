@@ -225,7 +225,7 @@ async function saveInvoiceRecord(
     invoiceNumber,
     documentType: data.documentType,
     customerName: data.customerName,
-    customerTaxId: data.customerTaxId,
+    ...(data.customerTaxId !== undefined && { customerTaxId: data.customerTaxId }),
     description: data.description,
     amount: data.amount,
     paymentMethod: data.paymentMethod,
