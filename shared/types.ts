@@ -350,6 +350,7 @@ export interface InvoiceCounter {
 export interface InvoiceCommandPayload {
   type: 'command';
   chatId: number;
+  chatTitle?: string; // Group/channel title (undefined for private chats)
   messageId: number;
   userId: number;
   username: string;
@@ -450,3 +451,28 @@ export type InvoiceCallbackAction =
   | { action: 'select_payment'; paymentMethod: PaymentMethod }
   | { action: 'confirm' }
   | { action: 'cancel' };
+
+// ============================================================================
+// User-to-Customer Mapping Types
+// ============================================================================
+
+/**
+ * Customer access information for a user
+ */
+export interface CustomerAccess {
+  chatId: number;
+  chatTitle: string;
+  addedAt: Date;
+  addedBy?: number;
+}
+
+/**
+ * User to customer mapping document
+ * Stored as user_customer_mapping/user_{userId}
+ */
+export interface UserCustomerMapping {
+  userId: number;
+  username: string;
+  customers: CustomerAccess[];
+  lastActive: Date;
+}
