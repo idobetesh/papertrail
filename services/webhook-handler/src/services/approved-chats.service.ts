@@ -17,10 +17,30 @@ function getFirestore(): Firestore {
   return firestore;
 }
 
-// In-memory cache of approved chats (chatId -> true)
+// In-memory cache of approved chats (chatId -> { approved, expiry })
 // Cache for 5 minutes to balance freshness vs performance
 const approvedChatsCache = new Map<number, { approved: boolean; expiry: number }>();
 const CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
+
+// Cleanup expired entries every 5 minutes
+setInterval(
+  () => {
+    const now = Date.now();
+    let cleaned = 0;
+
+    for (const [chatId, entry] of approvedChatsCache.entries()) {
+      if (now >= entry.expiry) {
+        approvedChatsCache.delete(chatId);
+        cleaned++;
+      }
+    }
+
+    if (cleaned > 0) {
+      console.log(`[ApprovedChatsService] Cleaned ${cleaned} expired cache entries`);
+    }
+  },
+  5 * 60 * 1000
+);
 
 /**
  * Check if a chat is approved for using the bot
