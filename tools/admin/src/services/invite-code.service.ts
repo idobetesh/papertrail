@@ -96,13 +96,15 @@ export class InviteCodeService {
    * List all invite codes
    */
   async listInviteCodes(status?: 'active' | 'used' | 'expired' | 'all'): Promise<InviteCode[]> {
-    let query = this.firestore.collection(this.COLLECTION_NAME).orderBy('createdAt', 'desc');
+    let query: FirebaseFirestore.Query = this.firestore
+      .collection(this.COLLECTION_NAME)
+      .orderBy('createdAt', 'desc');
 
     // Apply filters based on status
     if (status === 'used') {
-      query = query.where('used', '==', true) as any;
+      query = query.where('used', '==', true);
     } else if (status === 'active') {
-      query = query.where('used', '==', false).where('revoked', '==', false) as any;
+      query = query.where('used', '==', false).where('revoked', '==', false);
     }
 
     const snapshot = await query.get();
