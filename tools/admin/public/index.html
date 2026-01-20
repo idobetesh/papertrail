@@ -38,7 +38,16 @@
 
     <div class="tabs-container">
       <div class="tabs">
-        <button class="tab-button active" data-tab="firestore">
+        <button class="tab-button" data-tab="customers">
+          <svg class="icon-inline" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+            <circle cx="9" cy="7" r="4"/>
+            <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
+            <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+          </svg>
+          <span>Customers</span>
+        </button>
+        <button class="tab-button" data-tab="firestore">
           <svg class="icon-inline" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M4 7h16M4 12h16M4 17h16"/>
           </svg>
@@ -52,6 +61,38 @@
           </svg>
           <span>Cloud Storage</span>
         </button>
+      </div>
+    </div>
+
+    <!-- Customers Tab -->
+    <div id="customers-tab" class="tab-content">
+      <div class="card">
+        <div class="card-header">
+          <h2>
+            <svg class="icon-inline" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+              <circle cx="9" cy="7" r="4"/>
+              <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
+              <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+            </svg>
+            Customer Management
+          </h2>
+          <button id="refresh-customers-btn" class="btn btn-secondary">
+            <svg class="icon-inline" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polyline points="23 4 23 10 17 10"/>
+              <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/>
+            </svg>
+            <span>Refresh</span>
+          </button>
+        </div>
+        <div class="card-body">
+          <div id="customers-container">
+            <div class="loading-state">
+              <div class="spinner-small"></div>
+              <p>Loading customers...</p>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -267,6 +308,30 @@
   <div id="loading-overlay" class="loading-overlay" style="display: none;">
     <div class="spinner"></div>
     <p>Loading...</p>
+  </div>
+
+  <!-- Offboarding Preview Modal -->
+  <div id="offboard-modal" class="modal">
+    <div class="modal-backdrop" onclick="document.getElementById('offboard-modal').classList.remove('show')"></div>
+    <div class="modal-content" style="max-width: 700px;">
+      <div class="modal-icon" style="background: #fee2e2; color: #dc2626;">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+        </svg>
+      </div>
+      <h3>Offboard Customer</h3>
+      <div id="offboard-preview-content"></div>
+      <div class="modal-actions">
+        <button id="offboard-cancel" class="btn btn-ghost">Cancel</button>
+        <button id="offboard-confirm" class="btn btn-danger">
+          <svg class="icon-inline" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polyline points="3 6 5 6 21 6"/>
+            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+          </svg>
+          <span>Permanently Delete All Data</span>
+        </button>
+      </div>
+    </div>
   </div>
 
   <script src="app.js"></script>

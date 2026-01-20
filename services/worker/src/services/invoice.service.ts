@@ -342,8 +342,8 @@ export async function processInvoice(payload: TaskPayload): Promise<ProcessingRe
         costUSD: usage.costUSD,
       });
 
-      sheetRowId = await sheetsService.appendRow(sheetRow);
-      log.info({ sheetRowId }, 'Appended to sheet');
+      sheetRowId = await sheetsService.appendRow(chatId, sheetRow);
+      log.info({ sheetRowId }, 'Appended to customer Google Sheet');
     } catch (sheetsError) {
       // Sheets failed - ROLLBACK: delete all uploaded files
       log.error({ error: sheetsError }, 'Sheets append failed, rolling back uploads');
@@ -525,8 +525,8 @@ export async function handleDuplicateDecision(
       costUSD: jobWithExtraction.costUSD || 0,
     });
 
-    const sheetRowId = await sheetsService.appendRow(sheetRow);
-    log.info({ sheetRowId }, 'Appended to sheet after user decision');
+    const sheetRowId = await sheetsService.appendRow(chatId, sheetRow);
+    log.info({ sheetRowId }, 'Appended to customer Google Sheet after user decision');
 
     // Mark job as completed
     await storeService.markJobCompleted(chatId, messageId, {

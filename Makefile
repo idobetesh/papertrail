@@ -17,9 +17,7 @@ VERSION ?= $(shell git rev-parse --short HEAD 2>/dev/null || echo "latest")
         set-webhook get-webhook-info dev-webhook dev-worker test-worker \
         logs-webhook logs-worker clean lint lint-fix test test-unit \
         version revisions rollback-webhook rollback-worker \
-        sample-invoice seed-business-config upload-logo \
-        seed-customer-config list-customers upload-customer-logo \
-        admin-dev
+        sample-invoice admin-dev
 
 # =============================================================================
 # Help
@@ -86,13 +84,6 @@ help:
 	@echo ""
 	@echo "INVOICE GENERATION"
 	@echo "  make sample-invoice       Generate sample invoice PDF"
-	@echo "  make seed-business-config Seed default business config"
-	@echo "  make upload-logo          Upload default logo"
-	@echo ""
-	@echo "CUSTOMER MANAGEMENT (Multi-tenant)"
-	@echo "  make list-customers                     List all configured customers"
-	@echo "  make seed-customer-config CHAT_ID=xxx   Seed customer config by chat ID"
-	@echo "  make upload-customer-logo CHAT_ID=xxx LOGO=path  Upload customer logo"
 	@echo ""
 	@echo "Current project: $(PROJECT_ID)"
 	@echo "Region: $(REGION)"
@@ -111,6 +102,9 @@ install:
 	@echo ""
 	@echo "Installing worker dependencies..."
 	cd services/worker && npm install
+	@echo ""
+	@echo "Installing admin tool dependencies..."
+	cd tools/admin && npm install
 	@echo ""
 	@echo "All dependencies installed!"
 	@echo "Husky git hooks configured."
@@ -332,51 +326,6 @@ sample-invoice:
 	@echo ""
 	@echo "Open the PDF: open services/worker/scripts/output/sample-invoice.pdf"
 
-seed-business-config:
-	@echo "Seeding business config to Firestore..."
-	@echo "Using config: $(or $(CONFIG),ksuma)"
-	cd services/worker && npx ts-node scripts/customer/seed-business-config.ts $(or $(CONFIG),ksuma)
-
-upload-logo:
-	@if [ -z "$(LOGO)" ]; then \
-		echo "Error: LOGO path not set"; \
-		echo "Usage: make upload-logo LOGO=path/to/logo.jpeg"; \
-		exit 1; \
-	fi
-	@echo "Uploading logo to Cloud Storage..."
-	cd services/worker && npx ts-node scripts/customer/upload-logo.ts ../../$(LOGO)
-
-# =============================================================================
-# Customer Management (Multi-tenant)
-# =============================================================================
-
-list-customers:
-	@echo "Listing configured customers..."
-	cd services/worker && npx ts-node scripts/customer/list-customers.ts
-
-seed-customer-config:
-	@if [ -z "$(CHAT_ID)" ]; then \
-		echo "Error: CHAT_ID not set"; \
-		echo "Usage: make seed-customer-config CHAT_ID=-1001234567890"; \
-		exit 1; \
-	fi
-	@echo "Seeding customer config for chat $(CHAT_ID)..."
-	cd services/worker && npx ts-node scripts/customer/seed-customer-config.ts $(CHAT_ID)
-
-upload-customer-logo:
-	@if [ -z "$(CHAT_ID)" ]; then \
-		echo "Error: CHAT_ID not set"; \
-		echo "Usage: make upload-customer-logo CHAT_ID=-1001234567890 LOGO=path/to/logo.png"; \
-		exit 1; \
-	fi
-	@if [ -z "$(LOGO)" ]; then \
-		echo "Error: LOGO path not set"; \
-		echo "Usage: make upload-customer-logo CHAT_ID=-1001234567890 LOGO=path/to/logo.png"; \
-		exit 1; \
-	fi
-	@echo "Uploading logo for chat $(CHAT_ID)..."
-	cd services/worker && npx ts-node scripts/customer/upload-logo.ts $(LOGO) $(CHAT_ID)
-
 # =============================================================================
 # Admin Tool
 # =============================================================================
@@ -401,4 +350,5 @@ clean:
 	rm -rf node_modules
 	rm -rf services/webhook-handler/node_modules
 	rm -rf services/worker/node_modules
+	rm -rf tools/admin/node_modules
 	@echo "Clean complete!"

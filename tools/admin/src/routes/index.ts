@@ -2,11 +2,13 @@ import { Router } from 'express';
 import { FirestoreController } from '../controllers/firestore.controller';
 import { StorageController } from '../controllers/storage.controller';
 import { HealthController } from '../controllers/health.controller';
+import { CustomerController } from '../controllers/customer.controller';
 
 export function createRoutes(
   firestoreController: FirestoreController,
   storageController: StorageController,
-  healthController: HealthController
+  healthController: HealthController,
+  customerController: CustomerController
 ): Router {
   const router = Router();
 
@@ -20,10 +22,7 @@ export function createRoutes(
     '/firestore/collections/:collectionName/delete-multiple',
     firestoreController.deleteMultipleDocuments
   );
-  router.get(
-    '/firestore/collections/:collectionName/:documentId',
-    firestoreController.getDocument
-  );
+  router.get('/firestore/collections/:collectionName/:documentId', firestoreController.getDocument);
   router.put(
     '/firestore/collections/:collectionName/:documentId',
     firestoreController.updateDocument
@@ -43,6 +42,11 @@ export function createRoutes(
     '/storage/buckets/:bucketName/delete-multiple',
     storageController.deleteMultipleObjects
   );
+
+  // Customer routes
+  router.get('/customers', customerController.listCustomers);
+  router.get('/customers/:chatId/offboarding-preview', customerController.getOffboardingPreview);
+  router.delete('/customers/:chatId/offboard', customerController.offboardCustomer);
 
   return router;
 }
