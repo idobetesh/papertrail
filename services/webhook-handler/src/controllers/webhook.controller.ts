@@ -46,6 +46,13 @@ export async function handleWebhook(req: Request, res: Response): Promise<void> 
     return;
   }
 
+  // Handle /onboard command
+  if (telegramService.isOnboardCommand(update)) {
+    logger.info('Processing /onboard command');
+    await handleOnboardCommand(update, config, res);
+    return;
+  }
+
   // Handle other commands (could add /status, /help later)
   if (telegramService.isCommand(update)) {
     logger.debug('Ignoring unknown command message');
@@ -166,6 +173,36 @@ async function handleCallbackQuery(
   if (!callbackPayload) {
     logger.error('Failed to extract callback payload');
     res.status(400).json({ error: 'Failed to extract callback payload' });
+    return;
+  }
+
+  // Check if this is an onboarding-related callback
+  if (telegramService.isOnboardingCallback(callbackPayload.data)) {
+    const onboardingPayload = telegramService.extractInvoiceCallbackPayload(update);
+    if (!onboardingPayload) {
+      logger.error('Failed to extract onboarding callback payload');
+      res.status(400).json({ error: 'Failed to extract onboarding callback payload' });
+      return;
+    }
+
+    logger.info(
+      { callbackQueryId: onboardingPayload.callbackQueryId },
+      'Enqueueing onboarding callback for worker'
+    );
+
+    try {
+      const taskName = await tasksService.enqueueOnboardCallbackTask(onboardingPayload, config);
+      logger.info({ taskName }, 'Onboarding callback task enqueued successfully');
+
+      res.status(200).json({
+        ok: true,
+        action: 'onboarding_callback_enqueued',
+        task: taskName,
+      });
+    } catch (error) {
+      logger.error({ error }, 'Failed to enqueue onboarding callback task');
+      res.status(500).json({ error: 'Failed to enqueue onboarding callback task' });
+    }
     return;
   }
 
@@ -298,5 +335,45 @@ async function handleTextMessage(
   } catch (error) {
     logger.error({ error }, 'Failed to enqueue invoice message task');
     res.status(500).json({ error: 'Failed to enqueue invoice message task' });
+  }
+}
+
+/**
+ * Handle /onboard command
+ */
+async function handleOnboardCommand(
+  update: ReturnType<typeof telegramService.parseUpdate>,
+  config: ReturnType<typeof getConfig>,
+  res: Response
+): Promise<void> {
+  if (!update) {
+    res.status(400).json({ error: 'Invalid update' });
+    return;
+  }
+
+  const payload = telegramService.extractInvoiceCommandPayload(update);
+  if (!payload) {
+    logger.error('Failed to extract onboard command payload');
+    res.status(400).json({ error: 'Failed to extract onboard command payload' });
+    return;
+  }
+
+  logger.info(
+    { chatId: payload.chatId, userId: payload.userId },
+    'Enqueueing onboard command for worker'
+  );
+
+  try {
+    const taskName = await tasksService.enqueueOnboardCommandTask(payload, config);
+    logger.info({ taskName }, 'Onboard command task enqueued successfully');
+
+    res.status(200).json({
+      ok: true,
+      action: 'onboard_command_enqueued',
+      task: taskName,
+    });
+  } catch (error) {
+    logger.error({ error }, 'Failed to enqueue onboard command task');
+    res.status(500).json({ error: 'Failed to enqueue onboard command task' });
   }
 }

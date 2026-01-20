@@ -1,0 +1,242 @@
+/**
+ * Internationalization service
+ * Supports English and Hebrew languages
+ */
+
+export type Language = 'en' | 'he';
+
+export const messages = {
+  en: {
+    onboarding: {
+      welcome: '🚀 Welcome to PaperTrail!',
+      selectLanguage: 'Please select your language:',
+      languageSet: '✅ Language: English',
+
+      step1Title: '📝 Step 1/6: Business Name',
+      step1Prompt: 'Please send your business name:',
+      step1Confirm: '✅ Business Name: {name}',
+
+      step2Title: '👤 Step 2/6: Owner Details',
+      step2Prompt:
+        'Please send in this format:\nOwner Name, Tax ID, Phone, Email\n\nExample: John Doe, 123456789, +972501234567, john@acme.com',
+      step2Confirm: '✅ Owner: {name}\n✅ Tax ID: {taxId}\n✅ Phone: {phone}\n✅ Email: {email}',
+      step2Invalid: '❌ Invalid format. Please use: Name, Tax ID, Phone, Email',
+
+      step3Title: '📍 Step 3/7: Business Address',
+      step3Prompt: 'Please send your business address:',
+      step3Confirm: '✅ Address: {address}',
+
+      step4Title: '📋 Step 4/7: Tax Status',
+      step4Prompt: 'Please select your business tax status:',
+      step4Confirm: '✅ Tax Status: {status}',
+
+      step5Title: '🖼️ Step 5/7: Logo (Optional)',
+      step5Prompt: 'Please send your business logo as an image, or type /skip',
+      step5Confirm: '✅ Logo uploaded!',
+      step5Skipped: '⏭️ Logo skipped',
+      step5Invalid: '❌ Please send an image file or type /skip',
+
+      step6Title: '📊 Step 6/7: Google Sheet (Optional)',
+      step6Prompt: `To track invoices in Google Sheets:
+
+1. Create a Google Sheet (or use existing)
+2. Share it with: {serviceAccount}
+   (Give "Editor" access)
+3. Send the Sheet ID from the URL
+
+Or type /skip to set up later
+
+💡 Tip: The Sheet ID is the long string in the URL:
+docs.google.com/spreadsheets/d/[THIS_IS_THE_ID]/edit`,
+      step6Confirm: '✅ Testing Sheet access...\n✅ Sheet connected! Found tabs: "{tabs}"',
+      step6Error: `❌ Could not access sheet. Please check:
+1. Sheet ID is correct
+2. Sheet is shared with: {serviceAccount}
+3. "Editor" permission is granted
+
+Try again or /skip`,
+      step6Skipped: '⏭️ Google Sheet skipped (you can add it later with /set_sheet)',
+      step6Invalid: '❌ Please send a valid Sheet ID or type /skip',
+
+      step7Title: '🔢 Step 7/7: Starting Invoice Number',
+      step7Prompt: 'Do you have existing invoices?',
+      step7Confirm: '✅ Will start from invoice #{number}',
+      step7Skipped: '✅ Will start from invoice #1',
+      step7Invalid: '❌ Please send a valid number',
+
+      complete: `🎉 Setup Complete!
+
+Your business is configured:
+- Business: {businessName}
+- Owner: {ownerName} ({taxId})
+- Address: {address}
+- Contact: {phone}, {email}
+- Logo: {logo}
+- Google Sheet: {sheet}
+- Starting Invoice: #{counter}
+
+You're ready to go! Try these commands:
+- Send an invoice photo → Auto-processed
+- /invoice → Generate an invoice
+- /settings → View/edit configuration`,
+
+      alreadyConfigured:
+        '⚠️ Your business is already configured.\n\nUse /settings to view or edit your configuration.',
+    },
+
+    common: {
+      cancel: 'Cancel',
+      confirm: 'Confirm',
+      yes: 'Yes',
+      no: 'No',
+      skip: '/skip',
+    },
+
+    taxStatus: {
+      exempt: 'Tax Exempt Business (עוסק פטור מס)',
+      licensed: 'Licensed Business (עוסק מורשה)',
+    },
+
+    counter: {
+      startFromOne: 'Start from 1',
+      haveExisting: 'I have existing invoices',
+    },
+  },
+
+  he: {
+    onboarding: {
+      welcome: '🚀 ברוכים הבאים ל-PaperTrail!',
+      selectLanguage: 'אנא בחרו שפה:',
+      languageSet: '✅ שפה: עברית',
+
+      step1Title: '📝 שלב 1/6: שם העסק',
+      step1Prompt: 'אנא שלחו את שם העסק שלכם:',
+      step1Confirm: '✅ שם העסק: {name}',
+
+      step2Title: '👤 שלב 2/6: פרטי בעל העסק',
+      step2Prompt:
+        'אנא שלחו בפורמט הבא:\nשם, ת.ז / ח.פ, טלפון, אימייל\n\nדוגמה: ישראל ישראלי, 123456789, 0501234567, israel@example.com',
+      step2Confirm:
+        '✅ שם הבעלים: {name}\n✅ ת.ז / ח.פ: {taxId}\n✅ טלפון: {phone}\n✅ אימייל: {email}',
+      step2Invalid: '❌ פורמט לא תקין. אנא השתמשו בפורמט: שם, ת.ז, טלפון, אימייל',
+
+      step3Title: '📍 שלב 3/7: כתובת העסק',
+      step3Prompt: 'אנא שלחו את כתובת העסק:',
+      step3Confirm: '✅ כתובת: {address}',
+
+      step4Title: '📋 שלב 4/7: סטטוס מס',
+      step4Prompt: 'אנא בחרו את סטטוס המס של העסק:',
+      step4Confirm: '✅ סטטוס מס: {status}',
+
+      step5Title: '🖼️ שלב 5/7: לוגו (אופציונלי)',
+      step5Prompt: 'אנא שלחו את לוגו העסק כתמונה, או הקלידו /skip',
+      step5Confirm: '✅ לוגו הועלה!',
+      step5Skipped: '⏭️ דילגתם על לוגו',
+      step5Invalid: '❌ אנא שלחו קובץ תמונה או הקלידו /skip',
+
+      step6Title: '📊 שלב 6/7: גיליון גוגל (אופציונלי)',
+      step6Prompt: `כדי לעקוב אחרי חשבוניות בגיליון גוגל:
+
+1. צרו Google Sheet
+2. שתפו אותו עם: {serviceAccount}
+   (תנו הרשאת "Editor")
+3. שלחו את ה-Sheet ID מה-URL
+
+או הקלידו /skip לביצוע מאוחר יותר
+
+💡 טיפ: ה-Sheet ID הוא המחרוזת הארוכה ב-URL:
+docs.google.com/spreadsheets/d/[זה_השדה]/edit`,
+      step6Confirm: '✅ בודק גישה לגיליון...\n✅ הגיליון מחובר! נמצאו טאבים: "{tabs}"',
+      step6Error: `❌ לא ניתן לגשת לגיליון. אנא בדקו:
+1. ה-Sheet ID נכון
+2. הגיליון משותף עם: {serviceAccount}
+3. ניתנה הרשאת "Editor"
+
+נסו שוב או /skip`,
+      step6Skipped: '⏭️ דילגתם על גיליון גוגל (ניתן להוסיף מאוחר עם /set_sheet)',
+      step6Invalid: '❌ אנא שלחו Sheet ID תקין או הקלידו /skip',
+
+      step7Title: '🔢 שלב 7/7: מספר חשבונית התחלתי',
+      step7Prompt: 'האם יש לכם חשבוניות קיימות?',
+      step7Confirm: '✅ נתחיל מחשבונית מספר {number}#',
+      step7Skipped: '✅ נתחיל מחשבונית מספר 1#',
+      step7Invalid: '❌ אנא שלחו מספר תקין',
+
+      complete: `🎉 ההגדרה הושלמה!
+
+העסק שלכם מוגדר:
+- עסק: {businessName}
+- בעלים: {ownerName} ({taxId})
+- כתובת: {address}
+- יצירת קשר: {phone}, {email}
+- לוגו: {logo}
+- גיליון גוגל: {sheet}
+- חשבונית התחלתית: {counter}#
+
+מוכנים לעבודה! נסו את הפקודות הבאות:
+- שלחו תמונת חשבונית ← מעובדת אוטומטית
+- /invoice - צרו חשבונית
+- /settings - צפו/ערכו הגדרות`,
+
+      alreadyConfigured: '⚠️ העסק שלכם כבר מוגדר.\n\nהשתמשו ב-/settings לצפייה או עריכת ההגדרות.',
+    },
+
+    common: {
+      cancel: 'ביטול',
+      confirm: 'אישור',
+      yes: 'כן',
+      no: 'לא',
+      skip: '/skip',
+    },
+
+    taxStatus: {
+      exempt: 'עוסק פטור מס',
+      licensed: 'עוסק מורשה',
+    },
+
+    counter: {
+      startFromOne: 'התחל ממספר 1',
+      haveExisting: 'יש לי חשבוניות קיימות',
+    },
+  },
+};
+
+/**
+ * Get translated message with parameter replacement
+ * @param language - Target language
+ * @param key - Translation key (e.g., "onboarding.step1Title")
+ * @param params - Optional parameters to replace in the message
+ */
+export function t(language: Language, key: string, params?: Record<string, string>): string {
+  const keys = key.split('.');
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let value: any = messages[language];
+
+  for (const k of keys) {
+    value = value?.[k];
+    if (!value) {
+      console.error(`Translation key not found: ${key} for language ${language}`);
+      return key;
+    }
+  }
+
+  // Replace parameters
+  if (params) {
+    Object.keys(params).forEach((param) => {
+      value = value.replace(new RegExp(`\\{${param}\\}`, 'g'), params[param]);
+    });
+  }
+
+  return value;
+}
+
+/**
+ * Get default language from Telegram user's language code
+ * Falls back to English if not Hebrew
+ */
+export function getDefaultLanguage(telegramLanguageCode?: string): Language {
+  if (telegramLanguageCode === 'he' || telegramLanguageCode === 'iw') {
+    return 'he';
+  }
+  return 'en';
+}

@@ -398,6 +398,7 @@ export type InvoiceTaskPayload =
  * Business configuration for invoice generation
  */
 export interface BusinessConfig {
+  language?: 'en' | 'he'; // User's preferred language
   business: {
     name: string;
     taxId: string;
@@ -405,6 +406,8 @@ export interface BusinessConfig {
     email: string;
     phone: string;
     address: string;
+    logoUrl?: string; // Cloud Storage URL or public URL
+    sheetId?: string; // Per-customer Google Sheet ID
   };
   invoice: {
     digitalSignatureText: string;

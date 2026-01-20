@@ -139,14 +139,17 @@ let storagePageToken = null;
 
 // Initialize
 document.addEventListener('DOMContentLoaded', () => {
+  // Load status on initial page load/refresh (manual action by user)
   loadStatusSnapshot();
+
   setupTabs();
   loadCollections();
   loadBuckets();
   setupEventListeners();
-  
-  // Refresh status every 30 seconds
-  setInterval(loadStatusSnapshot, 30000);
+
+  // Auto-refresh disabled to save GCP API costs
+  // Only loads when user manually refreshes the page (F5/Cmd+R)
+  // setInterval(loadStatusSnapshot, 30000);
 });
 
 // Tab switching
@@ -1183,3 +1186,208 @@ function formatBytes(bytes) {
   const i = Math.floor(Math.log(bytes) / Math.log(k));
   return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
 }
+
+// ============================================================================
+// Customer Management
+// ============================================================================
+
+let currentOffboardingChatId = null;
+
+async function loadCustomers() {
+  const container = document.getElementById('customers-container');
+  container.innerHTML = '<div class="loading-state"><div class="spinner-small"></div><p>Loading customers...</p></div>';
+
+  try {
+    const response = await fetch('/api/customers', getAuthHeaders());
+
+    if (!response.ok) {
+      throw new Error('Failed to fetch customers');
+    }
+
+    const data = await response.json();
+    displayCustomers(data.customers);
+  } catch (error) {
+    console.error('Error loading customers:', error);
+    container.innerHTML = `<div class="empty-state"><svg class="empty-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg><p>Error loading customers</p></div>`;
+  }
+}
+
+function displayCustomers(customers) {
+  const container = document.getElementById('customers-container');
+
+  if (customers.length === 0) {
+    container.innerHTML = `<div class="empty-state"><svg class="empty-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg><p>No customers found</p></div>`;
+    return;
+  }
+
+  const table = document.createElement('table');
+  table.className = 'table';
+  table.innerHTML = `
+    <thead>
+      <tr>
+        <th>Chat ID</th>
+        <th>Business Name</th>
+        <th>Tax ID</th>
+        <th>Email</th>
+        <th>Phone</th>
+        <th>Logo</th>
+        <th>Sheet</th>
+        <th>Updated</th>
+        <th>Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+      ${customers.map(customer => `
+        <tr>
+          <td><code>${customer.chatId}</code></td>
+          <td><strong>${escapeHtml(customer.name)}</strong></td>
+          <td>${escapeHtml(customer.taxId)}</td>
+          <td>${escapeHtml(customer.email)}</td>
+          <td>${escapeHtml(customer.phone)}</td>
+          <td>${customer.hasLogo ? '<span class="badge badge-success">✓</span>' : '<span class="badge badge-secondary">✗</span>'}</td>
+          <td>${customer.hasSheet ? '<span class="badge badge-success">✓</span>' : '<span class="badge badge-secondary">✗</span>'}</td>
+          <td>${formatDate(customer.updatedAt)}</td>
+          <td>
+            <button class="btn btn-danger btn-sm" onclick="showOffboardingPreview(${customer.chatId})">
+              <svg class="icon-inline" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polyline points="3 6 5 6 21 6"/>
+                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+              </svg>
+              <span>Offboard</span>
+            </button>
+          </td>
+        </tr>
+      `).join('')}
+    </tbody>
+  `;
+
+  container.innerHTML = '';
+  container.appendChild(table);
+}
+
+async function showOffboardingPreview(chatId) {
+  currentOffboardingChatId = chatId;
+  const modal = document.getElementById('offboard-modal');
+  const content = document.getElementById('offboard-preview-content');
+
+  content.innerHTML = '<div class="loading-state"><div class="spinner-small"></div><p>Scanning customer data...</p></div>';
+  modal.classList.add('show');
+
+  try {
+    const response = await fetch(`/api/customers/${chatId}/offboarding-preview`, getAuthHeaders());
+
+    if (!response.ok) {
+      throw new Error('Failed to load preview');
+    }
+
+    const preview = await response.json();
+    displayOffboardingPreview(preview);
+  } catch (error) {
+    console.error('Error loading preview:', error);
+    content.innerHTML = `<p style="color: #dc2626;">Error loading preview: ${error.message}</p>`;
+  }
+}
+
+function displayOffboardingPreview(preview) {
+  const content = document.getElementById('offboard-preview-content');
+  const { summary, totalItems, customerName } = preview;
+
+  content.innerHTML = `
+    <div style="margin-bottom: 20px;">
+      <p style="margin-bottom: 10px;"><strong>Customer:</strong> ${escapeHtml(customerName)} (Chat ID: ${preview.chatId})</p>
+      <p style="color: #dc2626; font-weight: 600;">⚠️ This will permanently delete ALL data for this customer. This action cannot be undone!</p>
+    </div>
+
+    <div style="background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 8px; padding: 15px; margin-bottom: 20px;">
+      <h4 style="margin: 0 0 15px 0; font-size: 14px; text-transform: uppercase; letter-spacing: 0.5px; color: #6b7280;">Data to be deleted:</h4>
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; font-size: 14px;">
+        <div>${summary.businessConfig ? '✓' : '✗'} Business Configuration</div>
+        <div>${summary.logo.exists ? '✓' : '✗'} Logo (${summary.logo.exists ? summary.logo.path : 'none'})</div>
+        <div>${summary.onboardingSession ? '✓' : '✗'} Onboarding Session</div>
+        <div>${summary.counters.count > 0 ? '✓' : '✗'} Invoice Counters (${summary.counters.count})</div>
+        <div>${summary.generatedInvoices.count > 0 ? '✓' : '✗'} Generated Invoices (${summary.generatedInvoices.count})</div>
+        <div>${summary.generatedPDFs.count > 0 ? '✓' : '✗'} Generated PDFs (${summary.generatedPDFs.count})</div>
+        <div>${summary.receivedInvoices.count > 0 ? '✓' : '✗'} Received Invoices (${summary.receivedInvoices.count})</div>
+        <div>${summary.userMappings.count > 0 ? '✓' : '✗'} User Mappings (${summary.userMappings.count})</div>
+        <div>${summary.processingJobs.count > 0 ? '✓' : '✗'} Processing Jobs (${summary.processingJobs.count})</div>
+      </div>
+    </div>
+
+    <div style="background: #fef2f2; border: 1px solid #fecaca; border-radius: 8px; padding: 15px;">
+      <p style="margin: 0; font-weight: 600; color: #991b1b;">Total items to delete: ${totalItems}</p>
+    </div>
+  `;
+}
+
+async function confirmOffboarding() {
+  if (!currentOffboardingChatId) return;
+
+  const confirmBtn = document.getElementById('offboard-confirm');
+  confirmBtn.disabled = true;
+  confirmBtn.innerHTML = '<div class="spinner-small"></div> Deleting...';
+
+  try {
+    const response = await fetch(`/api/customers/${currentOffboardingChatId}/offboard`, {
+      method: 'DELETE',
+      ...getAuthHeaders()
+    });
+
+    if (!response.ok) {
+      throw new Error('Failed to offboard customer');
+    }
+
+    const result = await response.json();
+
+    // Close modal
+    document.getElementById('offboard-modal').classList.remove('show');
+
+    // Show success message
+    alert(`✅ Customer ${currentOffboardingChatId} has been successfully offboarded.\n\nTotal items deleted: ${result.deleted}`);
+
+    // Reload customers list
+    loadCustomers();
+    currentOffboardingChatId = null;
+  } catch (error) {
+    console.error('Error offboarding customer:', error);
+    alert(`❌ Error: ${error.message}`);
+    confirmBtn.disabled = false;
+    confirmBtn.innerHTML = '<svg class="icon-inline" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg><span>Permanently Delete All Data</span>';
+  }
+}
+
+function escapeHtml(text) {
+  const div = document.createElement('div');
+  div.textContent = text;
+  return div.innerHTML;
+}
+
+// Customer management event listeners - set up after DOM loads
+document.addEventListener('DOMContentLoaded', () => {
+  // Refresh button
+  const refreshBtn = document.getElementById('refresh-customers-btn');
+  if (refreshBtn) {
+    refreshBtn.addEventListener('click', loadCustomers);
+  }
+
+  // Offboarding modal buttons
+  const offboardConfirm = document.getElementById('offboard-confirm');
+  if (offboardConfirm) {
+    offboardConfirm.addEventListener('click', confirmOffboarding);
+  }
+
+  const offboardCancel = document.getElementById('offboard-cancel');
+  if (offboardCancel) {
+    offboardCancel.addEventListener('click', () => {
+      document.getElementById('offboard-modal').classList.remove('show');
+      currentOffboardingChatId = null;
+    });
+  }
+
+  // Load customers when customers tab is activated
+  const customersTab = document.querySelector('[data-tab="customers"]');
+  if (customersTab) {
+    customersTab.addEventListener('click', () => {
+      loadCustomers();
+    });
+  }
+});

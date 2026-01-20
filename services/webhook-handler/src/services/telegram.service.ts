@@ -116,6 +116,14 @@ export function isInvoiceCommand(update: TelegramUpdate): boolean {
 }
 
 /**
+ * Check if the update is an /onboard command
+ */
+export function isOnboardCommand(update: TelegramUpdate): boolean {
+  const message = update.message || update.channel_post;
+  return Boolean(message?.text?.toLowerCase().startsWith('/onboard'));
+}
+
+/**
  * Check if the update is a text message (not a command)
  */
 export function isTextMessage(update: TelegramUpdate): boolean {
@@ -432,4 +440,11 @@ export function isInvoiceCallback(data: string): boolean {
   } catch {
     return false;
   }
+}
+
+/**
+ * Check if callback is for onboarding flow
+ */
+export function isOnboardingCallback(data: string): boolean {
+  return data.startsWith('onboard_');
 }

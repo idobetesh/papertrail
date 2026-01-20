@@ -11,12 +11,17 @@ module.exports = {
   ],
   coverageDirectory: 'coverage',
   verbose: true,
+  // Performance optimizations
+  maxWorkers: '50%',
+  cache: true,
+  cacheDirectory: '<rootDir>/.jest-cache',
   transform: {
     '^.+\\.tsx?$': ['ts-jest', {
       tsconfig: {
         types: ['jest', 'node'],
         esModuleInterop: true,
       },
+      isolatedModules: true,
     }],
   },
 };

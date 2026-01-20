@@ -11,21 +11,14 @@ import { z } from 'zod';
 const envSchema = z.object({
   PORT: z.string().default('8080').transform(Number),
   GCP_PROJECT_ID: z.string().min(1, { message: 'GCP project ID is required' }),
-  TELEGRAM_BOT_TOKEN: z
-    .string()
-    .regex(/^\d+:[A-Za-z0-9_-]+$/, {
-      message: 'Invalid Telegram bot token format. Get one from @BotFather on Telegram',
-    }),
+  TELEGRAM_BOT_TOKEN: z.string().regex(/^\d+:[A-Za-z0-9_-]+$/, {
+    message: 'Invalid Telegram bot token format. Get one from @BotFather on Telegram',
+  }),
   OPENAI_API_KEY: z.string().startsWith('sk-', { message: 'OpenAI API key must start with sk-' }),
   GEMINI_API_KEY: z.string().optional(), // Optional - if not provided, only OpenAI is used
   STORAGE_BUCKET: z.string().min(3, { message: 'Cloud Storage bucket name is required' }),
   GENERATED_INVOICES_BUCKET: z.string().optional(), // Optional - for invoice generation feature
-  SHEET_ID: z
-    .string()
-    .min(10, {
-      message:
-        'Google Sheets ID is required. Get from URL: docs.google.com/spreadsheets/d/SHEET_ID',
-    }),
+  SHEET_ID: z.string().min(10).optional(), // Optional - per-customer sheets preferred, this is fallback only
   MAX_RETRIES: z.string().default('6').transform(Number),
   NODE_ENV: z.enum(['development', 'production', 'test']).default('production'),
 });
@@ -38,7 +31,7 @@ export type Config = {
   geminiApiKey: string | undefined;
   storageBucket: string;
   generatedInvoicesBucket: string;
-  sheetId: string;
+  sheetId: string | undefined; // Optional - per-customer sheets preferred
   maxRetries: number;
   isDevelopment: boolean;
 };
@@ -100,7 +93,7 @@ export function loadConfig(): Config {
   );
   console.log(`  - Storage bucket: ${config.storageBucket}`);
   console.log(`  - Generated invoices bucket: ${config.generatedInvoicesBucket}`);
-  console.log(`  - Sheet ID: ${config.sheetId}`);
+  console.log(`  - Sheet ID: ${config.sheetId || '(not configured - using per-customer sheets)'}`);
   console.log(`  - Max retries: ${config.maxRetries}`);
   console.log(`  - Development mode: ${config.isDevelopment}`);
 
