@@ -509,8 +509,8 @@ async function testSheetAccess(sheetId: string): Promise<string[]> {
     scopes: ['https://www.googleapis.com/auth/spreadsheets'],
   });
 
-  const authClient = await auth.getClient();
-  const sheets = google.sheets({ version: 'v4', auth: authClient });
+  await auth.getClient();
+  const sheets = google.sheets({ version: 'v4', auth });
 
   const response = await sheets.spreadsheets.get({
     spreadsheetId: sheetId,

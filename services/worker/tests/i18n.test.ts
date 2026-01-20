@@ -279,8 +279,8 @@ describe('i18n Service', () => {
       ];
 
       requiredSteps.forEach((step) => {
-        expect(messages.en.onboarding[step]).toBeDefined();
-        expect(messages.he.onboarding[step]).toBeDefined();
+        expect((messages.en.onboarding as Record<string, unknown>)[step]).toBeDefined();
+        expect((messages.he.onboarding as Record<string, unknown>)[step]).toBeDefined();
       });
     });
 

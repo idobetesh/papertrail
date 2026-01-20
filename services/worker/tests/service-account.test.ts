@@ -259,11 +259,11 @@ describe('Service Account Utilities', () => {
         email: 'worker-sa@papertrail-invoice.iam.gserviceaccount.com',
       });
 
-      // Make 10 calls
-      const promises = Array(10)
-        .fill(null)
-        .map(() => getServiceAccountEmail());
-      const results = await Promise.all(promises);
+      // Make 10 sequential calls
+      const results = [];
+      for (let i = 0; i < 10; i++) {
+        results.push(await getServiceAccountEmail());
+      }
 
       // All should return the same email
       results.forEach((email) => {

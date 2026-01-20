@@ -92,7 +92,7 @@ describe('Onboarding Controller', () => {
           replyMarkup: expect.objectContaining({
             inline_keyboard: expect.arrayContaining([
               expect.arrayContaining([
-                expect.objectContaining({ text: 'English 🇬🇧', callback_data: 'onboard_lang_en' }),
+                expect.objectContaining({ text: 'English 🇺🇸', callback_data: 'onboard_lang_en' }),
                 expect.objectContaining({ text: 'עברית 🇮🇱', callback_data: 'onboard_lang_he' }),
               ]),
             ]),

@@ -39,10 +39,10 @@ jobs:
         run: npm run build
 
       - name: Test webhook-handler
-        run: cd services/webhook-handler && npm test
+        run: cd services/webhook-handler && npm run test:ci
 
       - name: Test worker
-        run: cd services/worker && npm test
+        run: cd services/worker && npm run test:ci
 
   typecheck:
     name: TypeScript Check

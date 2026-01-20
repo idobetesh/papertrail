@@ -39,6 +39,12 @@ npm-debug.log*
 # Coverage
 coverage/
 
+# Test cache
+.jest-cache/
+
+# Playwright/Chromium crash reports
+.crashpad/
+
 # Temp files
 *.tmp
 *.temp

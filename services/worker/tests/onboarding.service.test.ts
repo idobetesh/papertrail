@@ -33,7 +33,26 @@ const mockSet = jest.fn((docPath: string, data: any) => {
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const mockUpdate = jest.fn((docPath: string, data: any) => {
   const existing = mockData[docPath] || {};
-  mockData[docPath] = { ...existing, ...data };
+  const updated = { ...existing };
+
+  // Handle Firestore dot notation (e.g., "data.businessName")
+  Object.entries(data).forEach(([key, value]) => {
+    if (key.includes('.')) {
+      const parts = key.split('.');
+      let current = updated;
+      for (let i = 0; i < parts.length - 1; i++) {
+        if (!current[parts[i]]) {
+          current[parts[i]] = {};
+        }
+        current = current[parts[i]];
+      }
+      current[parts[parts.length - 1]] = value;
+    } else {
+      updated[key] = value;
+    }
+  });
+
+  mockData[docPath] = updated;
   return Promise.resolve();
 });
 

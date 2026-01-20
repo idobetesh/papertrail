@@ -253,10 +253,10 @@ test-unit:
 	@echo "Running unit tests..."
 	@echo ""
 	@echo "=== Webhook Handler Tests ==="
-	cd services/webhook-handler && npm test
+	cd services/webhook-handler && npm run test:fast
 	@echo ""
 	@echo "=== Worker Tests ==="
-	cd services/worker && npm test
+	cd services/worker && npm run test:fast
 
 # =============================================================================
 # Local Development
