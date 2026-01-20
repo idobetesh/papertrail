@@ -7,6 +7,7 @@ import { validateCloudTasks } from '../middlewares/cloudTasks';
 import * as healthController from '../controllers/health.controller';
 import * as processController from '../controllers/process.controller';
 import * as invoiceController from '../controllers/invoice.controller';
+import * as onboardingController from '../controllers/onboarding.controller';
 
 const router = Router();
 
@@ -29,5 +30,10 @@ router.post('/notify-failure', processController.notifyFailure);
 router.post('/invoice/command', invoiceController.handleInvoiceCommand);
 router.post('/invoice/message', invoiceController.handleInvoiceMessage);
 router.post('/invoice/callback', invoiceController.handleInvoiceCallback);
+
+// Onboarding endpoints (reuse invoice routes since payloads are the same)
+router.post('/onboard/command', onboardingController.handleOnboardCommandExpress);
+router.post('/onboard/message', onboardingController.handleOnboardingMessageExpress);
+router.post('/onboard/callback', onboardingController.handleOnboardingCallbackExpress);
 
 export default router;

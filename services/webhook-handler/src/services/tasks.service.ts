@@ -263,3 +263,115 @@ export async function enqueueInvoiceCallbackTask(
 ): Promise<string> {
   return enqueueInvoiceTask('callback', payload.callbackQueryId, payload, config);
 }
+
+// ============================================================================
+// Onboarding Task Enqueueing
+// ============================================================================
+
+/**
+ * Enqueue onboarding task (command, message, or callback)
+ */
+async function enqueueOnboardingTask(
+  endpoint: string,
+  taskNameSuffix: string,
+  payload: InvoiceCommandPayload | InvoiceMessagePayload | InvoiceCallbackPayload,
+  config: Config
+): Promise<string> {
+  // Local development mode - call worker directly
+  if (isLocalMode()) {
+    return callOnboardingEndpointDirectly(endpoint, payload, config.workerUrl);
+  }
+
+  // Production mode - use Cloud Tasks
+  const client = getClient();
+
+  const parent = client.queuePath(config.projectId, config.location, config.queueName);
+
+  const taskName = `${parent}/tasks/onboard-${endpoint}-${taskNameSuffix}`;
+
+  const task = buildCloudTask(taskName, `/onboard/${endpoint}`, payload, config);
+
+  try {
+    const [response] = await client.createTask({
+      parent,
+      task,
+    });
+
+    logger.info({ taskName: response.name }, 'Onboarding Cloud Task created');
+    return response.name || taskName;
+  } catch (error: unknown) {
+    if (error instanceof Error && 'code' in error && (error as { code: number }).code === 6) {
+      logger.info({ taskName }, 'Onboarding task already exists (duplicate)');
+      return taskName;
+    }
+    throw error;
+  }
+}
+
+/**
+ * Call onboarding endpoint directly (local mode)
+ */
+async function callOnboardingEndpointDirectly(
+  endpoint: string,
+  payload: InvoiceCommandPayload | InvoiceMessagePayload | InvoiceCallbackPayload,
+  workerUrl: string
+): Promise<string> {
+  const url = `${workerUrl}/onboard/${endpoint}`;
+
+  logger.info({ url, endpoint }, 'Calling onboarding endpoint directly (local mode)');
+
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) {
+    const text = await response.text();
+    throw new Error(`Onboarding endpoint call failed: ${response.status} ${text}`);
+  }
+
+  return `local-onboard-${endpoint}`;
+}
+
+/**
+ * Enqueue /onboard command for processing
+ */
+export async function enqueueOnboardCommandTask(
+  payload: InvoiceCommandPayload,
+  config: Config
+): Promise<string> {
+  return enqueueOnboardingTask(
+    'command',
+    `${payload.chatId}-${payload.messageId}`,
+    payload,
+    config
+  );
+}
+
+/**
+ * Enqueue onboarding conversation message for processing
+ */
+export async function enqueueOnboardMessageTask(
+  payload: InvoiceMessagePayload,
+  config: Config
+): Promise<string> {
+  return enqueueOnboardingTask(
+    'message',
+    `${payload.chatId}-${payload.messageId}`,
+    payload,
+    config
+  );
+}
+
+/**
+ * Enqueue onboarding callback (button press) for processing
+ */
+export async function enqueueOnboardCallbackTask(
+  payload: InvoiceCallbackPayload,
+  config: Config
+): Promise<string> {
+  return enqueueOnboardingTask('callback', payload.callbackQueryId, payload, config);
+}
