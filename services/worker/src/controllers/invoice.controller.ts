@@ -194,11 +194,11 @@ export async function handleInvoiceCommand(req: Request, res: Response): Promise
   log.info('Processing invoice command');
 
   try {
-    // Validate user access to customer
-    const hasAccess = await userMappingService.userHasAccessToCustomer(
-      payload.userId,
-      payload.chatId
-    );
+    // Get user's customers (single Firestore read, avoids duplicate reads)
+    const userCustomers = await userMappingService.getUserCustomers(payload.userId);
+
+    // Check if user has access to this customer
+    const hasAccess = userCustomers.some((c) => c.chatId === payload.chatId);
 
     if (!hasAccess) {
       // Auto-add user if command sent in group chat
@@ -213,9 +213,8 @@ export async function handleInvoiceCommand(req: Request, res: Response): Promise
         );
         log.info('Auto-added user to customer on first interaction');
       } else {
-        // Private chat - check if user has any customers
-        const defaultCustomer = await userMappingService.getUserDefaultCustomer(payload.userId);
-        if (!defaultCustomer) {
+        // Private chat - check if user has any customers (from already-fetched data)
+        if (userCustomers.length === 0) {
           await telegramService.sendMessage(
             payload.chatId,
             '❌ אין לך הרשאה ליצור חשבוניות.\nשלח את הפקודה /invoice בקבוצה של העסק שלך.'

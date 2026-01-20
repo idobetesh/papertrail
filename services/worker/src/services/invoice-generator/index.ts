@@ -158,21 +158,25 @@ export async function generateInvoice(
   await saveInvoiceRecord(invoiceNumber, invoiceData, userId, username, chatId, pdfUrl);
   log.info('Invoice record saved to Firestore');
 
-  // Log to Google Sheets (fields already validated above)
-  await appendGeneratedInvoiceRow({
-    invoice_number: invoiceNumber,
-    document_type: invoiceData.documentType === 'invoice' ? 'חשבונית' : 'חשבונית-קבלה',
-    date: formatDateDisplay(invoiceData.date),
-    customer_name: invoiceData.customerName,
-    customer_tax_id: invoiceData.customerTaxId || '',
-    description: invoiceData.description,
-    amount: invoiceData.amount,
-    payment_method: invoiceData.paymentMethod,
-    generated_by: username,
-    generated_at: new Date().toISOString(),
-    pdf_link: pdfUrl,
-  });
-  log.info('Invoice logged to Sheets');
+  // Log to Google Sheets (pass sheetId from already-loaded config to avoid duplicate Firestore read)
+  await appendGeneratedInvoiceRow(
+    chatId,
+    {
+      invoice_number: invoiceNumber,
+      document_type: invoiceData.documentType === 'invoice' ? 'חשבונית' : 'חשבונית-קבלה',
+      date: formatDateDisplay(invoiceData.date),
+      customer_name: invoiceData.customerName,
+      customer_tax_id: invoiceData.customerTaxId || '',
+      description: invoiceData.description,
+      amount: invoiceData.amount,
+      payment_method: invoiceData.paymentMethod,
+      generated_by: username,
+      generated_at: new Date().toISOString(),
+      pdf_link: pdfUrl,
+    },
+    config.business.sheetId // Pass sheetId from already-loaded config (avoids duplicate Firestore read)
+  );
+  log.info('Invoice logged to customer Google Sheet');
 
   return {
     invoiceNumber,
