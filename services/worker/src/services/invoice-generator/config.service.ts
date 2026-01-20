@@ -38,6 +38,7 @@ function getStorage(): Storage {
  * Firestore document structure for business config
  */
 export interface BusinessConfigDocument {
+  language?: 'en' | 'he'; // User's preferred language
   business: {
     name: string;
     taxId: string;
@@ -46,6 +47,7 @@ export interface BusinessConfigDocument {
     phone: string;
     address: string;
     logoUrl?: string; // Cloud Storage URL or public URL
+    sheetId?: string; // Per-customer Google Sheet ID
   };
   invoice: {
     digitalSignatureText: string;
@@ -120,6 +122,7 @@ export async function getBusinessConfig(
  */
 function parseConfigDocument(data: BusinessConfigDocument): BusinessConfig {
   return {
+    language: data.language,
     business: {
       name: data.business.name,
       taxId: data.business.taxId,

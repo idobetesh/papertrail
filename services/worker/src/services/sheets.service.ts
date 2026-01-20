@@ -9,6 +9,7 @@ import type {
   GeneratedInvoiceSheetRow,
 } from '../../../../shared/types';
 import { getConfig } from '../config';
+import { getBusinessConfig } from './invoice-generator/config.service';
 import logger from '../logger';
 import { DEFAULT_CATEGORY } from './llms/utils';
 
@@ -22,6 +23,34 @@ function getSheets(): sheets_v4.Sheets {
     sheetsClient = google.sheets({ version: 'v4', auth });
   }
   return sheetsClient;
+}
+
+/**
+ * Get the Google Sheet ID for a customer
+ * Looks up per-customer sheet first, falls back to global sheet if configured
+ */
+async function getSheetIdForCustomer(chatId: number): Promise<string | null> {
+  // Get customer-specific sheet ID from business config
+  const businessConfig = await getBusinessConfig(chatId);
+
+  if (businessConfig.business.sheetId) {
+    logger.debug({ chatId, sheetId: businessConfig.business.sheetId }, 'Using per-customer sheet');
+    return businessConfig.business.sheetId;
+  }
+
+  // Fall back to global sheet if configured
+  const config = getConfig();
+  if (config.sheetId) {
+    logger.warn({ chatId }, 'No per-customer sheet configured, using global fallback sheet');
+    return config.sheetId;
+  }
+
+  // No sheet configured at all
+  logger.warn(
+    { chatId },
+    'No Google Sheet configured for customer (neither per-customer nor global fallback)'
+  );
+  return null;
 }
 
 /**
@@ -94,13 +123,12 @@ function formatDateTime(isoString: string): string {
 /**
  * Ensure sheet has headers (auto-add if first row is empty)
  */
-async function ensureHeaders(): Promise<void> {
-  const config = getConfig();
+async function ensureHeaders(sheetId: string): Promise<void> {
   const sheets = getSheets();
 
   // Check if sheet has data in first row
   const response = await sheets.spreadsheets.values.get({
-    spreadsheetId: config.sheetId,
+    spreadsheetId: sheetId,
     range: 'Invoices!A1:N1',
   });
 
@@ -115,7 +143,7 @@ async function ensureHeaders(): Promise<void> {
 
   // Add headers
   await sheets.spreadsheets.values.update({
-    spreadsheetId: config.sheetId,
+    spreadsheetId: sheetId,
     range: 'Invoices!A1:N1',
     valueInputOption: 'RAW',
     requestBody: {
@@ -129,12 +157,19 @@ async function ensureHeaders(): Promise<void> {
 /**
  * Append a row to the invoice sheet
  */
-export async function appendRow(row: SheetRow): Promise<number | undefined> {
-  const config = getConfig();
+export async function appendRow(chatId: number, row: SheetRow): Promise<number | undefined> {
+  // Get sheet ID for this customer
+  const sheetId = await getSheetIdForCustomer(chatId);
+
+  if (!sheetId) {
+    logger.warn({ chatId }, 'Skipping Google Sheets append - no sheet configured for customer');
+    return undefined;
+  }
+
   const sheets = getSheets();
 
   // Ensure headers exist
-  await ensureHeaders();
+  await ensureHeaders(sheetId);
 
   const values = [
     [
@@ -155,10 +190,10 @@ export async function appendRow(row: SheetRow): Promise<number | undefined> {
     ],
   ];
 
-  logger.debug('Appending row to Google Sheets');
+  logger.debug({ chatId, sheetId }, 'Appending row to customer Google Sheet');
 
   const response = await sheets.spreadsheets.values.append({
-    spreadsheetId: config.sheetId,
+    spreadsheetId: sheetId,
     range: 'Invoices!A:N', // Columns A through N (14 columns)
     valueInputOption: 'USER_ENTERED',
     insertDataOption: 'INSERT_ROWS',
@@ -240,14 +275,13 @@ export const GENERATED_INVOICES_HEADERS = [
 /**
  * Ensure Generated Invoices tab exists with headers
  */
-async function ensureGeneratedInvoicesTab(): Promise<void> {
-  const config = getConfig();
+async function ensureGeneratedInvoicesTab(sheetId: string): Promise<void> {
   const sheets = getSheets();
 
   try {
     // Check if tab exists by trying to read from it
     const response = await sheets.spreadsheets.values.get({
-      spreadsheetId: config.sheetId,
+      spreadsheetId: sheetId,
       range: `'${GENERATED_INVOICES_TAB}'!A1:K1`,
     });
 
@@ -262,7 +296,7 @@ async function ensureGeneratedInvoicesTab(): Promise<void> {
 
     // Tab exists but no headers - add them
     await sheets.spreadsheets.values.update({
-      spreadsheetId: config.sheetId,
+      spreadsheetId: sheetId,
       range: `'${GENERATED_INVOICES_TAB}'!A1:K1`,
       valueInputOption: 'RAW',
       requestBody: {
@@ -277,7 +311,7 @@ async function ensureGeneratedInvoicesTab(): Promise<void> {
 
     // Get spreadsheet to add a new sheet
     await sheets.spreadsheets.batchUpdate({
-      spreadsheetId: config.sheetId,
+      spreadsheetId: sheetId,
       requestBody: {
         requests: [
           {
@@ -293,7 +327,7 @@ async function ensureGeneratedInvoicesTab(): Promise<void> {
 
     // Add headers to new tab
     await sheets.spreadsheets.values.update({
-      spreadsheetId: config.sheetId,
+      spreadsheetId: sheetId,
       range: `'${GENERATED_INVOICES_TAB}'!A1:K1`,
       valueInputOption: 'RAW',
       requestBody: {
@@ -307,15 +341,30 @@ async function ensureGeneratedInvoicesTab(): Promise<void> {
 
 /**
  * Append a row to the Generated Invoices sheet tab
+ * @param chatId - Customer's Telegram chat ID
+ * @param row - Invoice row data to append
+ * @param sheetId - Optional sheet ID (if already known, avoids Firestore read)
  */
 export async function appendGeneratedInvoiceRow(
-  row: GeneratedInvoiceSheetRow
+  chatId: number,
+  row: GeneratedInvoiceSheetRow,
+  sheetId?: string
 ): Promise<number | undefined> {
-  const config = getConfig();
+  // Get sheet ID for this customer (only if not provided)
+  const resolvedSheetId = sheetId || (await getSheetIdForCustomer(chatId));
+
+  if (!resolvedSheetId) {
+    logger.warn(
+      { chatId },
+      'Skipping Generated Invoices append - no sheet configured for customer'
+    );
+    return undefined;
+  }
+
   const sheets = getSheets();
 
   // Ensure tab and headers exist
-  await ensureGeneratedInvoicesTab();
+  await ensureGeneratedInvoicesTab(resolvedSheetId);
 
   const values = [
     [
@@ -333,10 +382,13 @@ export async function appendGeneratedInvoiceRow(
     ],
   ];
 
-  logger.debug('Appending row to Generated Invoices tab');
+  logger.debug(
+    { chatId, sheetId: resolvedSheetId },
+    'Appending row to customer Generated Invoices tab'
+  );
 
   const response = await sheets.spreadsheets.values.append({
-    spreadsheetId: config.sheetId,
+    spreadsheetId: resolvedSheetId,
     range: `'${GENERATED_INVOICES_TAB}'!A:K`, // Columns A through K (11 columns)
     valueInputOption: 'USER_ENTERED',
     insertDataOption: 'INSERT_ROWS',
