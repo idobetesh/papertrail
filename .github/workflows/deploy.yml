@@ -15,7 +15,7 @@ on:
 env:
   PROJECT_ID: papertrail-invoice
   REGION: us-central1
-  REGISTRY: us-central1-docker.pkg.dev/papertrail-invoice/papertrail-containers
+  REGISTRY: ghcr.io/${{ github.repository_owner }}
 
 jobs:
   # Run tests first
@@ -47,25 +47,20 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      id-token: write
+      packages: write
     strategy:
       matrix:
         service: [webhook-handler, worker]
-    
+
     steps:
       - uses: actions/checkout@v4
 
-      - name: Authenticate to Google Cloud
-        uses: google-github-actions/auth@v2
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v3
         with:
-          workload_identity_provider: ${{ secrets.WIF_PROVIDER }}
-          service_account: ${{ secrets.WIF_SERVICE_ACCOUNT }}
-
-      - name: Set up Cloud SDK
-        uses: google-github-actions/setup-gcloud@v2
-
-      - name: Configure Docker
-        run: gcloud auth configure-docker ${{ env.REGION }}-docker.pkg.dev --quiet
+          registry: ghcr.io
+          username: ${{ github.repository_owner }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build and push ${{ matrix.service }}
         run: |
@@ -101,14 +96,20 @@ jobs:
           gcloud run services update webhook-handler \
             --image ${{ env.REGISTRY }}/webhook-handler:${{ github.sha }} \
             --region ${{ env.REGION }} \
-            --project ${{ env.PROJECT_ID }}
+            --project ${{ env.PROJECT_ID }} \
+            --cpu-throttling \
+            --memory 512Mi \
+            --cpu 1
 
       - name: Deploy worker
         run: |
           gcloud run services update worker \
             --image ${{ env.REGISTRY }}/worker:${{ github.sha }} \
             --region ${{ env.REGION }} \
-            --project ${{ env.PROJECT_ID }}
+            --project ${{ env.PROJECT_ID }} \
+            --cpu-throttling \
+            --memory 1Gi \
+            --cpu 2
 
       - name: Deployment complete
         run: |
