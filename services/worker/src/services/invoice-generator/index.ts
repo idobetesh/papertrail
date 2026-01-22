@@ -15,7 +15,7 @@ import type {
 } from '../../../../../shared/types';
 import { generateInvoicePDFWithConfig } from './pdf.generator';
 import { getNextInvoiceNumber } from './counter.service';
-import { getBusinessConfig, getLogoBase64 } from './config.service';
+import { getBusinessConfig, getLogoBase64 } from '../business-config/config.service';
 import { appendGeneratedInvoiceRow } from '../sheets.service';
 import logger from '../../logger';
 import { getConfig } from '../../config';

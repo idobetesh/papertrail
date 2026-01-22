@@ -58,7 +58,7 @@ jest.mock('../src/services/invoice-generator/counter.service', () => ({
   getNextInvoiceNumber: jest.fn(() => mockGetNextInvoiceNumber()),
 }));
 
-jest.mock('../src/services/invoice-generator/config.service', () => ({
+jest.mock('../src/services/business-config/config.service', () => ({
   getBusinessConfig: jest.fn(),
   getLogoBase64: jest.fn(),
 }));
@@ -74,7 +74,7 @@ jest.mock('../src/config', () => ({
 }));
 
 // Import the mocked modules to set up the mocks
-import * as configService from '../src/services/invoice-generator/config.service';
+import * as configService from '../src/services/business-config/config.service';
 
 describe('Invoice Generator', () => {
   beforeEach(() => {

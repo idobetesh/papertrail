@@ -9,7 +9,7 @@ import type {
   GeneratedInvoiceSheetRow,
 } from '../../../../shared/types';
 import { getConfig } from '../config';
-import { getBusinessConfig } from './invoice-generator/config.service';
+import { getBusinessConfig } from './business-config/config.service';
 import logger from '../logger';
 import { DEFAULT_CATEGORY } from './llms/utils';
 
