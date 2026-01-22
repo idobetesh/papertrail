@@ -286,7 +286,8 @@ export async function uploadLogo(
   buffer: Buffer,
   filename: string,
   bucketName: string,
-  chatId?: number
+  chatId?: number,
+  updateConfig = true // Set to false during onboarding to skip business_config update
 ): Promise<string> {
   const gcs = getStorage();
   const bucket = gcs.bucket(bucketName);
@@ -304,21 +305,29 @@ export async function uploadLogo(
 
   const publicUrl = `https://storage.googleapis.com/${bucketName}/${filePath}`;
 
-  // Update config with new logo URL
-  const db = getFirestore();
-  const docId = getDocIdForChat(chatId);
-  const docRef = db.collection(COLLECTION_NAME).doc(docId);
+  // Update business_config only if requested (skip during onboarding)
+  if (updateConfig) {
+    const db = getFirestore();
+    const docId = getDocIdForChat(chatId);
+    const docRef = db.collection(COLLECTION_NAME).doc(docId);
 
-  await docRef.update({
-    'business.logoUrl': publicUrl,
-    updatedAt: FieldValue.serverTimestamp(),
-  });
+    await docRef.set(
+      {
+        business: { logoUrl: publicUrl },
+        updatedAt: FieldValue.serverTimestamp(),
+      },
+      { merge: true }
+    );
 
-  // Clear cache for this chat
-  const cacheKey = chatId ? `chat_${chatId}` : 'default';
-  logoCache.delete(cacheKey);
+    // Clear cache for this chat
+    const cacheKey = chatId ? `chat_${chatId}` : 'default';
+    logoCache.delete(cacheKey);
 
-  logger.info({ publicUrl, chatId }, 'Logo uploaded and config updated');
+    logger.info({ publicUrl, chatId }, 'Logo uploaded and config updated');
+  } else {
+    logger.info({ publicUrl, chatId }, 'Logo uploaded (config update skipped for onboarding)');
+  }
+
   return publicUrl;
 }
 

@@ -7,7 +7,7 @@
 import { chromium } from 'playwright';
 import type { InvoiceData, BusinessConfig } from '../../../../../shared/types';
 import { buildInvoiceHTML } from './template';
-import { getBusinessConfig, getLogoBase64 } from './config.service';
+import { getBusinessConfig, getLogoBase64 } from '../business-config/config.service';
 import logger from '../../logger';
 
 // Chromium launch arguments for Docker/headless environment

@@ -14,7 +14,7 @@ import {
 } from '../src/controllers/onboarding.controller';
 import * as onboardingService from '../src/services/onboarding/onboarding.service';
 import * as telegramService from '../src/services/telegram.service';
-import * as configService from '../src/services/invoice-generator/config.service';
+import * as configService from '../src/services/business-config/config.service';
 import * as counterService from '../src/services/invoice-generator/counter.service';
 import * as serviceAccountUtil from '../src/utils/service-account';
 import * as inviteCodeService from '../src/services/invite-code.service';
@@ -43,7 +43,7 @@ jest.mock('../src/config', () => ({
 
 jest.mock('../src/services/onboarding/onboarding.service');
 jest.mock('../src/services/telegram.service');
-jest.mock('../src/services/invoice-generator/config.service');
+jest.mock('../src/services/business-config/config.service');
 jest.mock('../src/services/invoice-generator/counter.service');
 jest.mock('../src/utils/service-account');
 jest.mock('../src/services/invite-code.service');
