@@ -565,22 +565,14 @@ async function handleSheetStep(msg: TelegramMessage, language: Language): Promis
   const sheetId = extractSheetId(text);
 
   if (!sheetId) {
-    await sendMessage(
-      chatId,
-      t(language, 'onboarding.step6Invalid') +
-        '\n\n❌ מזהה גיליון לא תקין - העתק את כתובת ה-URL של הגיליון או את המזהה (לפחות 20 תווים)'
-    );
+    await sendMessage(chatId, t(language, 'onboarding.step6Invalid'));
     return;
   }
 
   // Validate sheet ID format
   const sheetIdValidation = googleSheetIdSchema.safeParse(sheetId);
   if (!sheetIdValidation.success) {
-    await sendMessage(
-      chatId,
-      t(language, 'onboarding.step6Invalid') +
-        '\n\n❌ מזהה גיליון לא תקין - חייב להכיל לפחות 20 תווים (אותיות, מספרים, מקפים)'
-    );
+    await sendMessage(chatId, t(language, 'onboarding.step6Invalid'));
     return;
   }
 

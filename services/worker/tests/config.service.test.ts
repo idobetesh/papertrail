@@ -22,8 +22,10 @@ jest.mock('@google-cloud/storage', () => ({
 
 // Mock Firestore
 const mockSet = jest.fn();
+const mockUpdate = jest.fn();
 const mockDoc = jest.fn(() => ({
   set: mockSet,
+  update: mockUpdate,
 }));
 const mockCollection = jest.fn(() => ({
   doc: mockDoc,
@@ -54,6 +56,7 @@ describe('uploadLogo', () => {
     jest.clearAllMocks();
     mockSave.mockResolvedValue(undefined);
     mockSet.mockResolvedValue(undefined);
+    mockUpdate.mockResolvedValue(undefined);
   });
 
   describe('with updateConfig=true (default)', () => {
