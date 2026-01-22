@@ -112,12 +112,31 @@ export class StorageController {
   deleteObject = async (req: Request, res: Response): Promise<void> => {
     try {
       const bucketName = req.params.bucketName;
-      // Extract object path from the wildcard (everything after /objects/)
-      const fullPath = req.path;
-      const objectsPrefix = `/api/storage/buckets/${bucketName}/objects/`;
-      const objectPath = fullPath.replace(objectsPrefix, '');
 
-      if (!objectPath) {
+      // Extract object path from the wildcard route
+      // Express stores wildcard matches in req.params[0] or we can use req.path
+      let objectPath: string;
+
+      // Try to get from params first (if Express populated it)
+      if ((req.params as { [key: string]: string })['0']) {
+        objectPath = (req.params as { [key: string]: string })['0'];
+      } else {
+        // Fallback: extract from path
+        const fullPath = req.path;
+        const objectsPrefix = `/api/storage/buckets/${bucketName}/objects/`;
+        objectPath = fullPath.replace(objectsPrefix, '');
+      }
+
+      // Decode the path in case it was URL encoded
+      try {
+        objectPath = decodeURIComponent(objectPath);
+      } catch {
+        // If decoding fails, use as-is
+      }
+
+      console.log(`Deleting object: ${bucketName}/${objectPath} (from path: ${req.path})`);
+
+      if (!objectPath || objectPath === '') {
         res.status(400).json({ error: 'Object path is required' });
         return;
       }
@@ -132,8 +151,12 @@ export class StorageController {
       await this.storageService.deleteObject(bucketName, objectPath);
       res.json({ success: true, message: 'Object deleted successfully' });
     } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       console.error('Error deleting object:', error);
-      res.status(500).json({ error: 'Failed to delete object' });
+      res.status(500).json({
+        error: 'Failed to delete object',
+        message: errorMessage,
+      });
     }
   };
 

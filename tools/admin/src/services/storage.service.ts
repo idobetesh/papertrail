@@ -188,9 +188,28 @@ export class StorageService {
    * Delete an object
    */
   async deleteObject(bucketName: string, objectPath: string): Promise<void> {
-    const bucket = this.storage.bucket(bucketName);
-    const file = bucket.file(objectPath);
-    await file.delete();
+    try {
+      const bucket = this.storage.bucket(bucketName);
+
+      // Check if bucket exists
+      const [bucketExists] = await bucket.exists();
+      if (!bucketExists) {
+        throw new Error(`Bucket "${bucketName}" does not exist`);
+      }
+
+      const file = bucket.file(objectPath);
+
+      // Check if file exists before attempting deletion
+      const [fileExists] = await file.exists();
+      if (!fileExists) {
+        throw new Error(`Object "${objectPath}" does not exist in bucket "${bucketName}"`);
+      }
+
+      await file.delete();
+    } catch (error) {
+      console.error(`Error deleting object ${bucketName}/${objectPath}:`, error);
+      throw error;
+    }
   }
 
   /**
