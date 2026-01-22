@@ -445,7 +445,7 @@ async function handleLogoStep(msg: TelegramMessage, language: Language): Promise
     await updateOnboardingSession(chatId, { step: 'sheet' });
 
     const message = await getSheetStepMessage(language);
-    await sendMessage(chatId, t(language, 'onboarding.step4Skipped') + '\n\n' + message);
+    await sendMessage(chatId, t(language, 'onboarding.step5Skipped') + '\n\n' + message);
     return;
   }
 
@@ -476,7 +476,7 @@ async function handleLogoStep(msg: TelegramMessage, language: Language): Promise
   }
 
   if (!fileId) {
-    await sendMessage(chatId, t(language, 'onboarding.step4Invalid'));
+    await sendMessage(chatId, t(language, 'onboarding.step5Invalid'));
     return;
   }
 
@@ -493,10 +493,10 @@ async function handleLogoStep(msg: TelegramMessage, language: Language): Promise
     await updateOnboardingSession(chatId, { step: 'sheet' });
 
     const message = await getSheetStepMessage(language);
-    await sendMessage(chatId, t(language, 'onboarding.step4Confirm') + '\n\n' + message);
+    await sendMessage(chatId, t(language, 'onboarding.step5Confirm') + '\n\n' + message);
   } catch (error) {
     logger.error({ error, chatId }, 'Failed to upload logo');
-    await sendMessage(chatId, t(language, 'onboarding.step4Invalid'));
+    await sendMessage(chatId, t(language, 'onboarding.step5Invalid'));
   }
 }
 
