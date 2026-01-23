@@ -95,6 +95,9 @@ export function parseUpdate(data: unknown): TelegramUpdate | null {
  * Check if the update contains a photo message
  */
 export function isPhotoMessage(update: TelegramUpdate): boolean {
+  if (isFromBot(update)) {
+    return false;
+  }
   const message = update.message || update.channel_post;
   return Boolean(message?.photo && message.photo.length > 0);
 }
@@ -103,14 +106,28 @@ export function isPhotoMessage(update: TelegramUpdate): boolean {
  * Check if the update is a command (starts with /)
  */
 export function isCommand(update: TelegramUpdate): boolean {
+  if (isFromBot(update)) {
+    return false;
+  }
   const message = update.message || update.channel_post;
   return Boolean(message?.text?.startsWith('/'));
+}
+
+/**
+ * Check if a message is from a bot (to avoid responding to our own messages)
+ */
+export function isFromBot(update: TelegramUpdate): boolean {
+  const message = update.message || update.channel_post || update.edited_message;
+  return Boolean(message?.from?.is_bot);
 }
 
 /**
  * Check if the update is an /invoice command
  */
 export function isInvoiceCommand(update: TelegramUpdate): boolean {
+  if (isFromBot(update)) {
+    return false;
+  }
   const message = update.message || update.channel_post;
   return Boolean(message?.text?.toLowerCase().startsWith('/invoice'));
 }
@@ -119,6 +136,9 @@ export function isInvoiceCommand(update: TelegramUpdate): boolean {
  * Check if the update is an /onboard command
  */
 export function isOnboardCommand(update: TelegramUpdate): boolean {
+  if (isFromBot(update)) {
+    return false;
+  }
   const message = update.message || update.channel_post;
   return Boolean(message?.text?.toLowerCase().startsWith('/onboard'));
 }
@@ -127,6 +147,9 @@ export function isOnboardCommand(update: TelegramUpdate): boolean {
  * Check if the update is a text message (not a command)
  */
 export function isTextMessage(update: TelegramUpdate): boolean {
+  if (isFromBot(update)) {
+    return false;
+  }
   const message = update.message || update.channel_post;
   return Boolean(message?.text && !message.text.startsWith('/'));
 }
@@ -135,6 +158,9 @@ export function isTextMessage(update: TelegramUpdate): boolean {
  * Check if the update contains a document message
  */
 export function isDocumentMessage(update: TelegramUpdate): boolean {
+  if (isFromBot(update)) {
+    return false;
+  }
   const message = update.message || update.channel_post;
   return Boolean(message?.document);
 }

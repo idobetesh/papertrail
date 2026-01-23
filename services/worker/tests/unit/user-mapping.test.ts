@@ -10,10 +10,10 @@ import {
   getUserDefaultCustomer,
   removeUserFromCustomer,
   updateUserActivity,
-} from '../src/services/customer/user-mapping.service';
+} from '../../src/services/customer/user-mapping.service';
 
 // Mock Firestore
-const mockData: Record<string, any> = {};
+const mockData: Record<string, Record<string, unknown>> = {};
 
 const mockGet = jest.fn((docPath: string) => {
   return Promise.resolve({
@@ -22,20 +22,21 @@ const mockGet = jest.fn((docPath: string) => {
   });
 });
 
-const mockSet = jest.fn((docPath: string, data: any) => {
+const mockSet = jest.fn((docPath: string, data: Record<string, unknown>) => {
   mockData[docPath] = data;
   return Promise.resolve();
 });
 
-const mockUpdate = jest.fn((docPath: string, data: any) => {
+const mockUpdate = jest.fn((docPath: string, data: Record<string, unknown>) => {
   const existing = mockData[docPath] || {};
 
   // Handle arrayUnion
-  if (data.customers?.arrayUnion) {
-    const newCustomer = data.customers.arrayUnion;
-    const existingCustomers = existing.customers || [];
+  const customers = data.customers as { arrayUnion?: { chatId: number } } | undefined;
+  if (customers?.arrayUnion) {
+    const newCustomer = customers.arrayUnion;
+    const existingCustomers = (existing.customers as Array<{ chatId: number }>) || [];
     // Add if not already present
-    if (!existingCustomers.some((c: any) => c.chatId === newCustomer.chatId)) {
+    if (!existingCustomers.some((c) => c.chatId === newCustomer.chatId)) {
       existing.customers = [...existingCustomers, newCustomer];
     }
     delete data.customers; // Remove arrayUnion marker
@@ -54,8 +55,8 @@ const mockDoc = jest.fn((docId: string) => {
   const docPath = `user_customer_mapping/${docId}`;
   return {
     get: () => mockGet(docPath),
-    set: (data: any) => mockSet(docPath, data),
-    update: (data: any) => mockUpdate(docPath, data),
+    set: (data: Record<string, unknown>) => mockSet(docPath, data),
+    update: (data: Record<string, unknown>) => mockUpdate(docPath, data),
     delete: () => mockDelete(docPath),
   };
 });
@@ -93,12 +94,17 @@ describe('User-to-Customer Mapping Service', () => {
       await addUserToCustomer(userId, username, chatId, chatTitle);
 
       const docPath = 'user_customer_mapping/user_123456';
-      expect(mockData[docPath]).toBeDefined();
-      expect(mockData[docPath].userId).toBe(userId);
-      expect(mockData[docPath].username).toBe(username);
-      expect(mockData[docPath].customers).toHaveLength(1);
-      expect(mockData[docPath].customers[0].chatId).toBe(chatId);
-      expect(mockData[docPath].customers[0].chatTitle).toBe(chatTitle);
+      const data = mockData[docPath] as {
+        userId: number;
+        username: string;
+        customers: Array<{ chatId: number; chatTitle: string }>;
+      };
+      expect(data).toBeDefined();
+      expect(data.userId).toBe(userId);
+      expect(data.username).toBe(username);
+      expect(data.customers).toHaveLength(1);
+      expect(data.customers[0].chatId).toBe(chatId);
+      expect(data.customers[0].chatTitle).toBe(chatTitle);
     });
 
     it('should add customer to existing user', async () => {
@@ -141,7 +147,10 @@ describe('User-to-Customer Mapping Service', () => {
       await addUserToCustomer(userId, username, chatId, 'Test Company', addedBy);
 
       const docPath = 'user_customer_mapping/user_123456';
-      expect(mockData[docPath].customers[0].addedBy).toBe(addedBy);
+      const data = mockData[docPath] as {
+        customers: Array<{ addedBy?: number }>;
+      };
+      expect(data.customers[0].addedBy).toBe(addedBy);
     });
   });
 

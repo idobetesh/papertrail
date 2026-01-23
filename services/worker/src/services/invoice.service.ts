@@ -275,12 +275,13 @@ export async function processInvoice(payload: TaskPayload): Promise<ProcessingRe
       return { success: true, alreadyProcessed: false };
     }
 
-    // Store extraction data for future duplicate checks
-    await storeService.storeExtraction(chatId, messageId, extraction);
-
     // Check for duplicate invoices
     const jobId = storeService.getJobId(chatId, messageId);
-    const duplicate = await storeService.findDuplicateInvoice(extraction, jobId);
+
+    const [, duplicate] = await Promise.all([
+      storeService.storeExtraction(chatId, messageId, extraction),
+      storeService.findDuplicateInvoice(extraction, jobId),
+    ]);
 
     // If duplicate found, pause for user decision
     if (duplicate) {
@@ -359,7 +360,6 @@ export async function processInvoice(payload: TaskPayload): Promise<ProcessingRe
     // Step 5: Send ACK message to Telegram
     currentStep = 'ack';
     log.info('Step 5: Sending ACK message');
-    await storeService.updateJobStep(chatId, messageId, currentStep, { sheetRowId });
 
     const ackMessage = telegramService.formatSuccessMessage(
       extraction.invoice_date,
@@ -368,12 +368,16 @@ export async function processInvoice(payload: TaskPayload): Promise<ProcessingRe
       driveLink
     );
 
-    await telegramService.sendMessage(chatId, ackMessage, {
-      parseMode: 'Markdown',
-      replyToMessageId: messageId,
-      disableWebPagePreview: true,
-    });
-    log.info('ACK message sent');
+    // Update job step and send message
+    await Promise.all([
+      storeService.updateJobStep(chatId, messageId, currentStep, { sheetRowId }),
+      telegramService.sendMessage(chatId, ackMessage, {
+        parseMode: 'Markdown',
+        replyToMessageId: messageId,
+        disableWebPagePreview: true,
+      }),
+    ]);
+    log.info('ACK message sent and job step updated');
 
     // Mark job as completed
     await storeService.markJobCompleted(chatId, messageId, {

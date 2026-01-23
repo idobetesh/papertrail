@@ -4,6 +4,7 @@
  */
 
 import { z } from 'zod';
+import logger from './logger';
 
 /**
  * Environment schema with validation and helpful error messages
@@ -18,7 +19,7 @@ const envSchema = z.object({
   GEMINI_API_KEY: z.string().optional(), // Optional - if not provided, only OpenAI is used
   STORAGE_BUCKET: z.string().min(3, { message: 'Cloud Storage bucket name is required' }),
   GENERATED_INVOICES_BUCKET: z.string().optional(), // Optional - for invoice generation feature
-  SHEET_ID: z.string().min(10).optional(), // Optional - per-customer sheets preferred, this is fallback only
+  ADMIN_SHEET_ID: z.string().min(10).optional(), // Optional - admin's sheet ID to include internal metrics
   MAX_RETRIES: z.string().default('6').transform(Number),
   NODE_ENV: z.enum(['development', 'production', 'test']).default('production'),
 });
@@ -31,7 +32,7 @@ export type Config = {
   geminiApiKey: string | undefined;
   storageBucket: string;
   generatedInvoicesBucket: string;
-  sheetId: string | undefined; // Optional - per-customer sheets preferred
+  adminSheetId: string | undefined; // Optional - admin's sheet ID to include internal metrics
   maxRetries: number;
   isDevelopment: boolean;
 };
@@ -50,6 +51,20 @@ export function loadConfig(): Config {
   const result = envSchema.safeParse(process.env);
 
   if (!result.success) {
+    const errors = result.error.issues.map((issue) => ({
+      field: issue.path.join('.') || 'unknown',
+      message: issue.message,
+    }));
+
+    logger.error(
+      {
+        errors,
+        errorCount: result.error.issues.length,
+      },
+      'Configuration validation failed - check environment variables'
+    );
+
+    // Also log to console for immediate visibility during startup
     console.error('\n╔══════════════════════════════════════════════════════════════╗');
     console.error('║                  CONFIGURATION ERROR                          ║');
     console.error('╠══════════════════════════════════════════════════════════════╣');
@@ -77,25 +92,27 @@ export function loadConfig(): Config {
     storageBucket: env.STORAGE_BUCKET,
     generatedInvoicesBucket:
       env.GENERATED_INVOICES_BUCKET || `${env.GCP_PROJECT_ID}-generated-invoices`,
-    sheetId: env.SHEET_ID,
+    adminSheetId: env.ADMIN_SHEET_ID,
     maxRetries: env.MAX_RETRIES,
     isDevelopment: env.NODE_ENV === 'development',
   };
 
   // Log loaded config (without sensitive values)
-  console.log('Configuration loaded:');
-  console.log(`  - Port: ${config.port}`);
-  console.log(`  - Project: ${config.projectId}`);
-  console.log(`  - Telegram token: ${maskSecret(config.telegramBotToken)}`);
-  console.log(`  - OpenAI key: ${maskSecret(config.openaiApiKey)}`);
-  console.log(
-    `  - Gemini key: ${config.geminiApiKey ? maskSecret(config.geminiApiKey) : '(not configured, using OpenAI only)'}`
+  logger.info(
+    {
+      port: config.port,
+      project: config.projectId,
+      telegramToken: maskSecret(config.telegramBotToken),
+      openaiKey: maskSecret(config.openaiApiKey),
+      geminiKey: config.geminiApiKey ? maskSecret(config.geminiApiKey) : 'not_configured',
+      storageBucket: config.storageBucket,
+      generatedInvoicesBucket: config.generatedInvoicesBucket,
+      adminSheetId: config.adminSheetId || 'not_configured',
+      maxRetries: config.maxRetries,
+      isDevelopment: config.isDevelopment,
+    },
+    'Configuration loaded successfully'
   );
-  console.log(`  - Storage bucket: ${config.storageBucket}`);
-  console.log(`  - Generated invoices bucket: ${config.generatedInvoicesBucket}`);
-  console.log(`  - Sheet ID: ${config.sheetId || '(not configured - using per-customer sheets)'}`);
-  console.log(`  - Max retries: ${config.maxRetries}`);
-  console.log(`  - Development mode: ${config.isDevelopment}`);
 
   cachedConfig = config;
   return config;

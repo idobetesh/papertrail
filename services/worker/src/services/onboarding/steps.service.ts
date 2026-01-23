@@ -11,6 +11,7 @@ import {
   getOnboardingSession,
   updateOnboardingData,
   updateOnboardingSession,
+  completeOnboarding,
 } from './onboarding.service';
 import {
   uploadLogo,
@@ -27,6 +28,7 @@ import {
   extractSheetId,
   validateCounter,
 } from './validation.service';
+import { addUserToCustomer } from '../customer/user-mapping.service';
 import {
   getSheetStepMessage,
   getSheetErrorMessage,
@@ -216,7 +218,7 @@ export async function handleLogoStep(
 }
 
 /**
- * Handle Google Sheet step
+ * Handle Google Sheet step (REQUIRED - cannot be skipped)
  */
 export async function handleSheetStep(
   chatId: number,
@@ -224,16 +226,6 @@ export async function handleSheetStep(
   language: Language
 ): Promise<void> {
   if (!text) {
-    return;
-  }
-
-  // Check if user wants to skip
-  if (text === '/skip') {
-    await updateOnboardingSession(chatId, { step: 'counter' });
-    await sendMessage(chatId, t(language, 'onboarding.step6Skipped'));
-    await sendMessage(chatId, getCounterSelectionMessage(language), {
-      replyMarkup: getCounterSelectionKeyboard(language),
-    });
     return;
   }
 
@@ -419,6 +411,11 @@ async function finalizeOnboarding(
     startingCounter?: number;
   }
 ): Promise<void> {
+  // Get session to retrieve userId for user-customer mapping
+  const session = await getOnboardingSession(chatId);
+  if (!session?.userId) {
+    throw new Error('Session userId not found during finalization');
+  }
   // Validate all required fields
   if (
     !data.businessName ||
@@ -451,18 +448,30 @@ async function finalizeOnboarding(
     },
   };
 
-  // Save business config
-  await saveBusinessConfig(config, chatId);
-  logger.info({ chatId }, 'Business config created');
+  // Save business config, initialize counter, and add user mapping in parallel
+  const parallelWrites = [
+    saveBusinessConfig(config, chatId),
+    addUserToCustomer(
+      session.userId,
+      data.ownerName, // Use business owner name as username fallback
+      chatId,
+      data.businessName // Use business name as chat title
+    ),
+  ];
 
-  // Initialize counter if specified
+  // Initialize counter if specified (conditional parallel write)
   if (data.startingCounter && data.startingCounter > 0) {
-    await initializeCounter(chatId, data.startingCounter);
-    logger.info({ chatId, startingCounter: data.startingCounter }, 'Invoice counter initialized');
+    parallelWrites.push(initializeCounter(chatId, data.startingCounter));
   }
 
-  // Complete onboarding session (imported from onboarding.service)
-  const { completeOnboarding } = await import('./onboarding.service');
+  await Promise.all(parallelWrites);
+
+  logger.info(
+    { chatId, userId: session.userId, hasCounter: !!data.startingCounter },
+    'Business config, user mapping, and counter initialized in parallel'
+  );
+
+  // Complete onboarding session
   await completeOnboarding(chatId);
 
   // Send completion message

@@ -77,8 +77,10 @@ export async function handleInvoiceCommand(req: Request, res: Response): Promise
       }
     }
 
-    // Update user activity
-    await userMappingService.updateUserActivity(payload.userId);
+    // OPTIMIZATION: Fire-and-forget user activity update (non-critical, saves 50-100ms)
+    userMappingService
+      .updateUserActivity(payload.userId)
+      .catch((err) => log.warn({ err, userId: payload.userId }, 'Failed to update user activity'));
 
     // Check for fast-path (all arguments in one message)
     const fastPath = parseFastPathCommand(payload.text);

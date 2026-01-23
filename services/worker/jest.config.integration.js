@@ -1,24 +1,25 @@
 /**
- * Jest configuration for unit tests
- * Runs tests in tests/unit directory
+ * Jest configuration for integration tests
+ * Runs tests in tests/integration directory
  * @type {import('ts-jest').JestConfigWithTsJest}
  */
 module.exports = {
   preset: 'ts-jest',
   testEnvironment: 'node',
-  roots: ['<rootDir>/tests/unit'],
-  testMatch: ['**/*.test.ts'],
+  roots: ['<rootDir>/tests/integration'],
+  testMatch: ['**/*.test.ts', '**/*.e2e.test.ts'],
   moduleFileExtensions: ['ts', 'js', 'json'],
   collectCoverageFrom: [
     'src/**/*.ts',
     '!src/index.ts',
   ],
-  coverageDirectory: 'coverage/unit',
+  coverageDirectory: 'coverage/integration',
   verbose: true,
-  // Performance optimizations
+  testTimeout: 10000, // Integration tests may take longer
   maxWorkers: '50%',
+  forceExit: true, // Force exit after tests complete (integration tests may have open handles)
   cache: true,
-  cacheDirectory: '<rootDir>/.jest-cache',
+  cacheDirectory: '<rootDir>/.jest-cache-integration',
   transform: {
     '^.+\\.tsx?$': ['ts-jest', {
       tsconfig: {
