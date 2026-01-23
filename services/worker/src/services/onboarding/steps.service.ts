@@ -7,7 +7,11 @@ import type { TelegramMessage } from '../../../../../shared/types';
 import type { Language } from '../i18n/languages';
 import { t } from '../i18n/languages';
 import { sendMessage, downloadFileById, getFileExtension } from '../telegram.service';
-import { updateOnboardingData, updateOnboardingSession } from './onboarding.service';
+import {
+  getOnboardingSession,
+  updateOnboardingData,
+  updateOnboardingSession,
+} from './onboarding.service';
 import {
   uploadLogo,
   saveBusinessConfig,
@@ -272,8 +276,7 @@ export async function handleSheetStep(
 export async function handleCounterStep(
   chatId: number,
   text: string,
-  language: Language,
-  sessionData: Record<string, unknown>
+  language: Language
 ): Promise<void> {
   if (!text) {
     return;
@@ -299,8 +302,33 @@ export async function handleCounterStep(
 
   await updateOnboardingData(chatId, { startingCounter });
 
+  // Fetch complete session data for finalization
+  const session = await getOnboardingSession(chatId);
+  if (
+    !session?.data?.businessName ||
+    !session?.data?.ownerName ||
+    !session?.data?.ownerIdNumber ||
+    !session?.data?.phone ||
+    !session?.data?.email ||
+    !session?.data?.address ||
+    !session?.data?.taxStatus
+  ) {
+    throw new Error('Incomplete session data');
+  }
+
   // Now finalize onboarding
-  await finalizeOnboarding(chatId, language, { ...sessionData, startingCounter });
+  await finalizeOnboarding(chatId, language, {
+    businessName: session.data.businessName,
+    ownerName: session.data.ownerName,
+    ownerIdNumber: session.data.ownerIdNumber,
+    phone: session.data.phone,
+    email: session.data.email,
+    address: session.data.address,
+    taxStatus: session.data.taxStatus,
+    logoUrl: session.data.logoUrl,
+    sheetId: session.data.sheetId,
+    startingCounter,
+  });
 }
 
 /**
@@ -330,13 +358,38 @@ export async function handleTaxStatusSelection(
 export async function handleCounterSelection(
   chatId: number,
   startFromOne: boolean,
-  language: Language,
-  sessionData: Record<string, unknown>
+  language: Language
 ): Promise<void> {
   if (startFromOne) {
     // Start from 1 - finalize immediately
     await updateOnboardingData(chatId, { startingCounter: 0 });
-    await finalizeOnboarding(chatId, language, { ...sessionData, startingCounter: 0 });
+
+    // Fetch complete session data for finalization
+    const session = await getOnboardingSession(chatId);
+    if (
+      !session?.data?.businessName ||
+      !session?.data?.ownerName ||
+      !session?.data?.ownerIdNumber ||
+      !session?.data?.phone ||
+      !session?.data?.email ||
+      !session?.data?.address ||
+      !session?.data?.taxStatus
+    ) {
+      throw new Error('Incomplete session data');
+    }
+
+    await finalizeOnboarding(chatId, language, {
+      businessName: session.data.businessName,
+      ownerName: session.data.ownerName,
+      ownerIdNumber: session.data.ownerIdNumber,
+      phone: session.data.phone,
+      email: session.data.email,
+      address: session.data.address,
+      taxStatus: session.data.taxStatus,
+      logoUrl: session.data.logoUrl,
+      sheetId: session.data.sheetId,
+      startingCounter: 0,
+    });
   } else {
     // User has existing invoices - ask for the number
     await sendMessage(

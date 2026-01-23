@@ -169,7 +169,7 @@ export async function handleCounterCallback(query: TelegramCallbackQuery): Promi
   const startFromOne = query.data === 'onboard_counter_1';
 
   await answerCallbackQuery(query.id);
-  await handleCounterSelection(chatId, startFromOne, session.language, session.data);
+  await handleCounterSelection(chatId, startFromOne, session.language);
 
   logger.info({ chatId, choice: query.data }, 'Counter selected');
 }
@@ -207,7 +207,7 @@ export async function handleOnboardingMessage(msg: TelegramMessage): Promise<voi
         await handleSheetStep(chatId, text, language);
         break;
       case 'counter':
-        await handleCounterStep(chatId, text, language, session.data);
+        await handleCounterStep(chatId, text, language);
         break;
       default:
         log.warn('Unknown step');
