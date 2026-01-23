@@ -40,13 +40,15 @@ describe('Invoice Generator Integration Tests', () => {
 
   describe('POST /invoice/command', () => {
     const validCommandPayload: InvoiceCommandPayload = {
-      type: 'invoice_command',
+      type: 'command',
       chatId: -123456,
       userId: 789,
       messageId: 101,
       username: 'testuser',
+      firstName: 'Test',
       chatTitle: 'Test Chat',
       text: '/invoice',
+      receivedAt: new Date().toISOString(),
     };
 
     describe('Access control', () => {
@@ -180,11 +182,14 @@ describe('Invoice Generator Integration Tests', () => {
 
   describe('POST /invoice/message', () => {
     const validMessagePayload: InvoiceMessagePayload = {
-      type: 'invoice_message',
+      type: 'message',
       chatId: -123456,
       userId: 789,
       messageId: 102,
+      username: 'testuser',
+      firstName: 'Test',
       text: 'Vendor A, 250, 15/01/2024',
+      receivedAt: new Date().toISOString(),
     };
 
     describe('Message processing', () => {
@@ -258,10 +263,11 @@ describe('Invoice Generator Integration Tests', () => {
 
   describe('POST /invoice/callback', () => {
     const validCallbackPayload: InvoiceCallbackPayload = {
-      type: 'invoice_callback',
+      type: 'callback',
       chatId: -123456,
       userId: 789,
       messageId: 103,
+      username: 'testuser',
       callbackQueryId: 'callback123',
       data: JSON.stringify({ action: 'select_type', documentType: 'invoice' }),
     };

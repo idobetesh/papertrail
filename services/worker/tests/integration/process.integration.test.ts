@@ -37,8 +37,10 @@ describe('Process Controller Integration Tests', () => {
       chatId: 123456,
       messageId: 789,
       fileId: 'file123',
+      uploaderUsername: 'testuser',
+      uploaderFirstName: 'Test',
       chatTitle: 'Test Chat',
-      fileType: 'photo',
+      receivedAt: new Date().toISOString(),
     };
 
     describe('Payload validation', () => {
