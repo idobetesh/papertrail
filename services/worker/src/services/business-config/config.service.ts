@@ -140,10 +140,12 @@ function parseConfigDocument(data: BusinessConfigDocument): BusinessConfig {
 
 /**
  * Get logo as base64 data URL for embedding in HTML
- * Looks up by chat ID first, falls back to default
+ * If logoUrl is provided, uses it directly. Otherwise fetches from Firestore.
+ * @param chatId - Chat ID to look up logo (used for caching)
+ * @param logoUrl - Optional logo URL from already-loaded config (avoids Firestore read)
  * Returns null if no logo is configured
  */
-export async function getLogoBase64(chatId?: number): Promise<string | null> {
+export async function getLogoBase64(chatId?: number, logoUrl?: string): Promise<string | null> {
   const now = Date.now();
   const cacheKey = chatId ? `chat_${chatId}` : 'default';
 
@@ -153,39 +155,43 @@ export async function getLogoBase64(chatId?: number): Promise<string | null> {
     return cached.base64;
   }
 
-  const db = getFirestore();
   const log = logger.child({ function: 'getLogoBase64', chatId });
 
   try {
-    // Try chat-specific config first
-    let logoUrl: string | undefined;
+    let resolvedLogoUrl = logoUrl;
 
-    if (chatId) {
-      const chatDocRef = db.collection(COLLECTION_NAME).doc(getDocIdForChat(chatId));
-      const chatDoc = await chatDocRef.get();
+    // Only query Firestore if logoUrl not provided (backward compatibility)
+    if (!resolvedLogoUrl) {
+      const db = getFirestore();
 
-      if (chatDoc.exists) {
-        const data = chatDoc.data() as BusinessConfigDocument;
-        logoUrl = data.business.logoUrl;
+      // Try chat-specific config first
+      if (chatId) {
+        const chatDocRef = db.collection(COLLECTION_NAME).doc(getDocIdForChat(chatId));
+        const chatDoc = await chatDocRef.get();
+
+        if (chatDoc.exists) {
+          const data = chatDoc.data() as BusinessConfigDocument;
+          resolvedLogoUrl = data.business.logoUrl;
+        }
+      }
+
+      // Fall back to default if no chat-specific logo
+      if (!resolvedLogoUrl) {
+        const defaultDocRef = db.collection(COLLECTION_NAME).doc(DEFAULT_DOC_ID);
+        const defaultDoc = await defaultDocRef.get();
+
+        if (defaultDoc.exists) {
+          const data = defaultDoc.data() as BusinessConfigDocument;
+          resolvedLogoUrl = data.business.logoUrl;
+        }
       }
     }
 
-    // Fall back to default if no chat-specific logo
-    if (!logoUrl) {
-      const defaultDocRef = db.collection(COLLECTION_NAME).doc(DEFAULT_DOC_ID);
-      const defaultDoc = await defaultDocRef.get();
-
-      if (defaultDoc.exists) {
-        const data = defaultDoc.data() as BusinessConfigDocument;
-        logoUrl = data.business.logoUrl;
-      }
-    }
-
-    if (!logoUrl) {
+    if (!resolvedLogoUrl) {
       return null;
     }
 
-    const base64 = await fetchLogoAsBase64(logoUrl);
+    const base64 = await fetchLogoAsBase64(resolvedLogoUrl);
 
     if (base64) {
       logoCache.set(cacheKey, { base64, fetchedAt: now });

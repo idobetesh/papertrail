@@ -8,8 +8,8 @@ import type {
   InvoiceExtraction,
   GeneratedInvoiceSheetRow,
 } from '../../../../shared/types';
-import { getConfig } from '../config';
 import { getBusinessConfig } from './business-config/config.service';
+import { getConfig } from '../config';
 import logger from '../logger';
 import { DEFAULT_CATEGORY } from './llms/utils';
 
@@ -38,25 +38,15 @@ async function getSheetIdForCustomer(chatId: number): Promise<string | null> {
     return businessConfig.business.sheetId;
   }
 
-  // Fall back to global sheet if configured
-  const config = getConfig();
-  if (config.sheetId) {
-    logger.warn({ chatId }, 'No per-customer sheet configured, using global fallback sheet');
-    return config.sheetId;
-  }
-
-  // No sheet configured at all
-  logger.warn(
-    { chatId },
-    'No Google Sheet configured for customer (neither per-customer nor global fallback)'
-  );
+  // No sheet configured - do NOT use global fallback to avoid cross-contamination
+  logger.warn({ chatId }, 'No Google Sheet configured for customer - skipping sheet operations');
   return null;
 }
 
 /**
- * Column headers for the invoice sheet (14 columns)
+ * Column headers for customer sheets (11 columns - without internal metrics)
  */
-export const SHEET_HEADERS = [
+export const CUSTOMER_SHEET_HEADERS = [
   'Received At',
   'Invoice Date',
   'Amount',
@@ -68,10 +58,32 @@ export const SHEET_HEADERS = [
   'Chat Name',
   'Link',
   'Status',
+];
+
+/**
+ * Column headers for admin sheet (14 columns - includes internal metrics)
+ */
+export const ADMIN_SHEET_HEADERS = [
+  ...CUSTOMER_SHEET_HEADERS,
   'LLM Provider',
   'Total Tokens',
   'Cost (USD)',
 ];
+
+/**
+ * Check if sheet is the admin sheet (to include internal metrics)
+ */
+function isAdminSheet(sheetId: string): boolean {
+  const config = getConfig();
+  return config.adminSheetId === sheetId;
+}
+
+/**
+ * Get appropriate headers for a sheet
+ */
+function getHeadersForSheet(sheetId: string): string[] {
+  return isAdminSheet(sheetId) ? ADMIN_SHEET_HEADERS : CUSTOMER_SHEET_HEADERS;
+}
 
 /**
  * Format date as DD/MM/YYYY
@@ -121,37 +133,110 @@ function formatDateTime(isoString: string): string {
 }
 
 /**
- * Ensure sheet has headers (auto-add if first row is empty)
+ * Ensure Invoices tab exists with headers
  */
-async function ensureHeaders(sheetId: string): Promise<void> {
+async function ensureInvoicesTab(sheetId: string): Promise<void> {
   const sheets = getSheets();
+  const headers = getHeadersForSheet(sheetId);
+  const isAdmin = isAdminSheet(sheetId);
+  const columnLetter = String.fromCharCode(64 + headers.length); // A=65, K=75 (11 cols), N=78 (14 cols)
 
-  // Check if sheet has data in first row
-  const response = await sheets.spreadsheets.values.get({
-    spreadsheetId: sheetId,
-    range: 'Invoices!A1:N1',
-  });
+  try {
+    // Check if tab exists by trying to read from it
+    const response = await sheets.spreadsheets.values.get({
+      spreadsheetId: sheetId,
+      range: `Invoices!A1:${columnLetter}1`,
+    });
 
-  if (
-    response.data.values &&
-    response.data.values.length > 0 &&
-    response.data.values[0].length > 0
-  ) {
-    // Headers already exist
-    return;
+    if (
+      response.data.values &&
+      response.data.values.length > 0 &&
+      response.data.values[0].length > 0
+    ) {
+      // Tab exists - check if headers match expected format
+      const existingHeaders = response.data.values[0];
+      const headersMatch =
+        existingHeaders.length === headers.length &&
+        existingHeaders.every((h, i) => h === headers[i]);
+
+      if (headersMatch) {
+        // Headers are correct
+        return;
+      }
+
+      // Headers don't match - update them (migration support)
+      logger.warn(
+        {
+          sheetId,
+          isAdmin,
+          existingCount: existingHeaders.length,
+          expectedCount: headers.length,
+        },
+        'Updating sheet headers to match expected format'
+      );
+
+      await sheets.spreadsheets.values.update({
+        spreadsheetId: sheetId,
+        range: `Invoices!A1:${columnLetter}1`,
+        valueInputOption: 'RAW',
+        requestBody: {
+          values: [headers],
+        },
+      });
+
+      logger.info(
+        { sheetId, isAdmin, columnCount: headers.length },
+        'Invoices tab headers updated'
+      );
+      return;
+    }
+
+    // Tab exists but no headers - add them
+    await sheets.spreadsheets.values.update({
+      spreadsheetId: sheetId,
+      range: `Invoices!A1:${columnLetter}1`,
+      valueInputOption: 'RAW',
+      requestBody: {
+        values: [headers],
+      },
+    });
+
+    logger.info({ sheetId, isAdmin, columnCount: headers.length }, 'Invoices tab headers added');
+  } catch (error) {
+    // Tab doesn't exist - create it
+    logger.info('Creating Invoices tab');
+
+    // Create the Invoices tab
+    await sheets.spreadsheets.batchUpdate({
+      spreadsheetId: sheetId,
+      requestBody: {
+        requests: [
+          {
+            addSheet: {
+              properties: {
+                title: 'Invoices',
+              },
+            },
+          },
+        ],
+      },
+    });
+
+    // Add headers to new tab
+    await sheets.spreadsheets.values.update({
+      spreadsheetId: sheetId,
+      range: `Invoices!A1:${columnLetter}1`,
+      valueInputOption: 'RAW',
+      requestBody: {
+        values: [headers],
+      },
+    });
+
+    logger.info(
+      { sheetId, isAdmin, columnCount: headers.length },
+      'Invoices tab created with headers'
+    );
   }
-
-  // Add headers
-  await sheets.spreadsheets.values.update({
-    spreadsheetId: sheetId,
-    range: 'Invoices!A1:N1',
-    valueInputOption: 'RAW',
-    requestBody: {
-      values: [SHEET_HEADERS],
-    },
-  });
-
-  logger.info('Sheet headers added automatically');
 }
 
 /**
@@ -168,33 +253,43 @@ export async function appendRow(chatId: number, row: SheetRow): Promise<number |
 
   const sheets = getSheets();
 
-  // Ensure headers exist
-  await ensureHeaders(sheetId);
+  // Ensure tab and headers exist
+  await ensureInvoicesTab(sheetId);
 
-  const values = [
-    [
-      row.received_at,
-      row.invoice_date,
-      row.amount,
-      row.currency,
-      row.invoice_number,
-      row.vendor_name,
-      row.category,
-      row.uploader,
-      row.chat_name,
-      row.drive_link,
-      row.status,
-      row.llm_provider,
-      row.total_tokens,
-      row.cost_usd,
-    ],
+  // Check if this is admin sheet to determine which columns to include
+  const isAdmin = isAdminSheet(sheetId);
+
+  // Build row data - conditionally include internal metrics for admin sheet
+  const rowData = [
+    row.received_at,
+    row.invoice_date,
+    row.amount,
+    row.currency,
+    row.invoice_number,
+    row.vendor_name,
+    row.category,
+    row.uploader,
+    row.chat_name,
+    row.drive_link,
+    row.status,
   ];
 
-  logger.debug({ chatId, sheetId }, 'Appending row to customer Google Sheet');
+  // Add internal metrics only for admin sheet
+  if (isAdmin) {
+    rowData.push(row.llm_provider, String(row.total_tokens), String(row.cost_usd));
+  }
+
+  const values = [rowData];
+  const columnLetter = String.fromCharCode(64 + rowData.length);
+
+  logger.debug(
+    { chatId, sheetId, isAdmin, columnCount: rowData.length },
+    'Appending row to Google Sheet'
+  );
 
   const response = await sheets.spreadsheets.values.append({
     spreadsheetId: sheetId,
-    range: 'Invoices!A:N', // Columns A through N (14 columns)
+    range: `Invoices!A:${columnLetter}`,
     valueInputOption: 'USER_ENTERED',
     insertDataOption: 'INSERT_ROWS',
     requestBody: {

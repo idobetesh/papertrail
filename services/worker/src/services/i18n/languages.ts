@@ -36,15 +36,13 @@ export const messages = {
       step5Skipped: '⏭️ Logo skipped',
       step5Invalid: '❌ Please send an image file or type /skip',
 
-      step6Title: '📊 Step 6/7: Google Sheet (Optional)',
+      step6Title: '📊 Step 6/7: Google Sheet (Required)',
       step6Prompt: `To track invoices in Google Sheets:
 
 1. Create a Google Sheet (or use existing)
 2. Share it with: {serviceAccount}
    (Give "Editor" access)
 3. Send the Sheet ID from the URL
-
-Or type /skip to set up later
 
 💡 Tip: The Sheet ID is the long string in the URL:
 docs.google.com/spreadsheets/d/[THIS_IS_THE_ID]/edit`,
@@ -54,9 +52,8 @@ docs.google.com/spreadsheets/d/[THIS_IS_THE_ID]/edit`,
 2. Sheet is shared with: {serviceAccount}
 3. "Editor" permission is granted
 
-Try again or /skip`,
-      step6Skipped: '⏭️ Google Sheet skipped (you can add it later with /set_sheet)',
-      step6Invalid: '❌ Please send a valid Sheet ID or type /skip',
+Please try again`,
+      step6Invalid: '❌ Please send a valid Google Sheet ID',
 
       step7Title: '🔢 Step 7/7: Starting Invoice Number',
       step7Prompt: 'Do you have existing invoices?',
@@ -77,11 +74,9 @@ Your business is configured:
 
 You're ready to go! Try these commands:
 - Send an invoice photo → Auto-processed
-- /invoice → Generate an invoice
-- /settings → View/edit configuration`,
+- /invoice → Generate an invoice`,
 
-      alreadyConfigured:
-        '⚠️ Your business is already configured.\n\nUse /settings to view or edit your configuration.',
+      alreadyConfigured: '⚠️ Your business is already configured.',
     },
 
     common: {
@@ -177,15 +172,13 @@ You're ready to go! Try these commands:
       step5Skipped: '⏭️ דילגתם על לוגו',
       step5Invalid: '❌ אנא שלחו קובץ תמונה או הקלידו /skip',
 
-      step6Title: '📊 שלב 6/7: גיליון גוגל (אופציונלי)',
+      step6Title: '📊 שלב 6/7: גיליון גוגל (חובה)',
       step6Prompt: `כדי לעקוב אחרי חשבוניות בגיליון גוגל:
 
 1. צרו Google Sheet
 2. שתפו אותו עם: {serviceAccount}
    (תנו הרשאת "Editor")
 3. שלחו את ה-Sheet ID מה-URL
-
-או הקלידו /skip לביצוע מאוחר יותר
 
 💡 טיפ: ה-Sheet ID הוא המחרוזת הארוכה ב-URL:
 docs.google.com/spreadsheets/d/[זה_השדה]/edit`,
@@ -195,9 +188,8 @@ docs.google.com/spreadsheets/d/[זה_השדה]/edit`,
 2. הגיליון משותף עם: {serviceAccount}
 3. ניתנה הרשאת "Editor"
 
-נסו שוב או /skip`,
-      step6Skipped: '⏭️ דילגתם על גיליון גוגל (ניתן להוסיף מאוחר עם /set_sheet)',
-      step6Invalid: '❌ אנא שלחו Sheet ID תקין או הקלידו /skip',
+אנא נסו שוב`,
+      step6Invalid: '❌ אנא שלחו Sheet ID תקין של Google',
 
       step7Title: '🔢 שלב 7/7: מספר חשבונית התחלתי',
       step7Prompt: 'האם יש לכם חשבוניות קיימות?',
@@ -218,10 +210,9 @@ docs.google.com/spreadsheets/d/[זה_השדה]/edit`,
 
 מוכנים לעבודה! נסו את הפקודות הבאות:
 - שלחו תמונת חשבונית ← מעובדת אוטומטית
-- /invoice - צרו חשבונית
-- /settings - צפו/ערכו הגדרות`,
+- /invoice - צרו חשבונית`,
 
-      alreadyConfigured: '⚠️ העסק שלכם כבר מוגדר.\n\nהשתמשו ב-/settings לצפייה או עריכת ההגדרות.',
+      alreadyConfigured: '⚠️ העסק שלכם כבר מוגדר.',
     },
 
     common: {

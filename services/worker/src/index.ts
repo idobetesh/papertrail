@@ -24,7 +24,7 @@ async function main(): Promise<void> {
         port: config.port,
         project: config.projectId,
         storageBucket: config.storageBucket,
-        sheetId: config.sheetId,
+        adminSheetId: config.adminSheetId,
       },
       'Configuration loaded'
     );

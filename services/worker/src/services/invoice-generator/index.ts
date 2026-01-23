@@ -110,17 +110,19 @@ export async function generateInvoice(
   const log = logger.child({ chatId, userId, username });
   log.info('Starting invoice generation');
 
-  // Load business config (by chat ID for multi-customer support)
+  // Step 1: Load config first (needed for logoUrl)
   const config = await loadBusinessConfig(chatId);
-  log.debug({ businessName: config.business.name }, 'Loaded business config');
 
-  // Load logo (by chat ID for multi-customer support)
-  const logoBase64 = await getLogoBase64(chatId);
-  log.debug({ hasLogo: !!logoBase64 }, 'Loaded logo');
+  // Step 2: Fetch logo and invoice number
+  const [logoBase64, invoiceNumber] = await Promise.all([
+    getLogoBase64(chatId, config.business.logoUrl), // Saves 1 Firestore read!
+    getNextInvoiceNumber(chatId),
+  ]);
 
-  // Get next invoice number (atomic, per-customer)
-  const invoiceNumber = await getNextInvoiceNumber(chatId);
-  log.info({ invoiceNumber }, 'Got invoice number for customer');
+  log.debug(
+    { businessName: config.business.name, hasLogo: !!logoBase64, invoiceNumber },
+    'Loaded config, logo, and invoice number (optimized)'
+  );
 
   // Validate required session fields
   if (
