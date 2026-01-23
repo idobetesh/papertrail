@@ -17,7 +17,7 @@ VERSION ?= $(shell git rev-parse --short HEAD 2>/dev/null || echo "latest")
         set-webhook get-webhook-info dev-webhook dev-worker test-worker \
         logs-webhook logs-worker clean lint lint-fix test test-unit \
         version revisions rollback-webhook rollback-worker \
-        sample-invoice admin-dev offboard-business offboard-user
+        sample-invoice admin-dev merge-dependabot offboard-business offboard-user
 
 # =============================================================================
 # Help
@@ -85,6 +85,10 @@ help:
 	@echo ""
 	@echo "INVOICE GENERATION"
 	@echo "  make sample-invoice       Generate sample invoice PDF"
+	@echo ""
+	@echo "DEPENDENCIES"
+	@echo "  make list-dependabot  List all Dependabot PRs and their status (no gh CLI needed)"
+	@echo "  make merge-dependabot Bulk merge passing Dependabot PRs (with confirmation)"
 	@echo ""
 	@echo "DATA MANAGEMENT"
 	@echo "  make offboard-business CHAT_ID=xxx   Remove business (keeps users with other businesses)"
@@ -367,6 +371,21 @@ clean:
 	rm -rf services/worker/node_modules
 	rm -rf tools/admin/node_modules
 	@echo "Clean complete!"
+
+# =============================================================================
+# Dependency Management
+# =============================================================================
+
+merge-dependabot:
+	@echo "🤖 Merging Dependabot PRs (dry run first)..."
+	@.github/scripts/merge-dependabot-prs.sh dry-run
+	@echo ""
+	@read -p "Proceed with merge? (y/N): " confirm; \
+	if [ "$$confirm" = "y" ] || [ "$$confirm" = "Y" ]; then \
+		.github/scripts/merge-dependabot-prs.sh; \
+	else \
+		echo "❌ Cancelled"; \
+	fi
 
 # =============================================================================
 # Data Management
