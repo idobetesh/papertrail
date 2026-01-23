@@ -39,7 +39,6 @@ import {
   getCompletionMessage,
 } from './messages.service';
 import { verifySheetAccess } from './sheet-verification.service';
-import { getConfig } from '../../config';
 import logger from '../../logger';
 
 /**
@@ -202,9 +201,8 @@ export async function handleLogoStep(
     const extension = getFileExtension(filePath);
 
     // Upload logo to Cloud Storage (skip business_config update during onboarding)
-    const config = getConfig();
     const filename = `logo.${extension}`;
-    const logoUrl = await uploadLogo(buffer, filename, config.storageBucket, chatId, false);
+    const logoUrl = await uploadLogo(buffer, filename, chatId, false);
 
     await updateOnboardingData(chatId, { logoUrl });
     await updateOnboardingSession(chatId, { step: 'sheet' });

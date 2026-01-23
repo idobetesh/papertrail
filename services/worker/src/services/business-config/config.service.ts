@@ -8,6 +8,7 @@ import { Firestore, FieldValue, Timestamp } from '@google-cloud/firestore';
 import { Storage } from '@google-cloud/storage';
 import type { BusinessConfig } from '../../../../../shared/types';
 import logger from '../../logger';
+import { getConfig } from '../../config';
 
 const COLLECTION_NAME = 'business_config';
 const DEFAULT_DOC_ID = 'default';
@@ -282,20 +283,23 @@ export async function saveBusinessConfig(
 }
 
 /**
- * Upload logo to Cloud Storage and update config
+ * Upload logo to Cloud Storage (generated-invoices bucket for permanent assets)
  * @param buffer - Logo file buffer
  * @param filename - Filename for the logo
- * @param bucketName - Cloud Storage bucket name
  * @param chatId - Optional chat ID for customer-specific config
+ * @param updateConfig - Set to false during onboarding to skip business_config update
  */
 export async function uploadLogo(
   buffer: Buffer,
   filename: string,
-  bucketName: string,
   chatId?: number,
-  updateConfig = true // Set to false during onboarding to skip business_config update
+  updateConfig = true
 ): Promise<string> {
+  const config = getConfig();
   const gcs = getStorage();
+
+  // Logos go to generated-invoices bucket (permanent assets)
+  const bucketName = config.generatedInvoicesBucket;
   const bucket = gcs.bucket(bucketName);
 
   // Organize logos by chat ID for multi-customer support

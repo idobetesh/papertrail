@@ -19,7 +19,7 @@ const envSchema = z.object({
   GEMINI_API_KEY: z.string().optional(), // Optional - if not provided, only OpenAI is used
   STORAGE_BUCKET: z.string().min(3, { message: 'Cloud Storage bucket name is required' }),
   GENERATED_INVOICES_BUCKET: z.string().optional(), // Optional - for invoice generation feature
-  ADMIN_SHEET_ID: z.string().min(10).optional(), // Optional - admin's sheet ID to include internal metrics
+  SHEET_ID: z.string().min(10).optional(), // Optional - admin's sheet ID to include internal metrics
   MAX_RETRIES: z.string().default('6').transform(Number),
   NODE_ENV: z.enum(['development', 'production', 'test']).default('production'),
 });
@@ -92,7 +92,7 @@ export function loadConfig(): Config {
     storageBucket: env.STORAGE_BUCKET,
     generatedInvoicesBucket:
       env.GENERATED_INVOICES_BUCKET || `${env.GCP_PROJECT_ID}-generated-invoices`,
-    adminSheetId: env.ADMIN_SHEET_ID,
+    adminSheetId: env.SHEET_ID,
     maxRetries: env.MAX_RETRIES,
     isDevelopment: env.NODE_ENV === 'development',
   };
