@@ -1403,3 +1403,119 @@ code {
   width: 16px;
   height: 16px;
 }
+
+/* Invite Code List Items */
+.list-item {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 20px;
+  margin-bottom: 16px;
+  transition: var(--transition);
+  box-shadow: var(--shadow-sm);
+}
+
+.list-item:hover {
+  border-color: var(--border-light);
+  box-shadow: var(--shadow-md);
+  transform: translateY(-1px);
+}
+
+.list-item-content {
+  margin-bottom: 16px;
+}
+
+.list-item-content:last-child {
+  margin-bottom: 0;
+}
+
+.list-item-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
+}
+
+.list-item-actions .btn-small {
+  padding: 8px 14px;
+  font-size: 13px;
+  min-width: auto;
+}
+
+.code-inline {
+  background: var(--bg-secondary);
+  color: var(--primary);
+  padding: 6px 12px;
+  border-radius: 6px;
+  font-family: 'SF Mono', 'Monaco', 'Cascadia Code', 'Roboto Mono', monospace;
+  font-size: 15px;
+  border: 1px solid var(--border);
+  letter-spacing: 1px;
+}
+
+/* Status Badges */
+.status-badge {
+  display: inline-block;
+  padding: 4px 12px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.status-active {
+  background: linear-gradient(135deg, #10b98122, #10b98108);
+  color: #10b981;
+  border: 1px solid #10b981;
+}
+
+.status-used {
+  background: linear-gradient(135deg, #3b82f622, #3b82f608);
+  color: #60a5fa;
+  border: 1px solid #3b82f6;
+}
+
+.status-expired {
+  background: linear-gradient(135deg, #94a3b822, #94a3b808);
+  color: #cbd5e1;
+  border: 1px solid #64748b;
+}
+
+.status-revoked {
+  background: linear-gradient(135deg, #f8717122, #f8717108);
+  color: #f87171;
+  border: 1px solid #ef4444;
+}
+
+/* Filter Buttons */
+.filter-button {
+  background: var(--bg-tertiary);
+  color: var(--text-secondary);
+  border: 1px solid var(--border);
+  padding: 8px 16px;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: var(--transition);
+}
+
+.filter-button:hover {
+  background: var(--bg-hover);
+  border-color: var(--border-light);
+  color: var(--text-primary);
+}
+
+.filter-button.active {
+  background: var(--primary);
+  color: white;
+  border-color: var(--primary);
+}
+
+.tab-buttons {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
