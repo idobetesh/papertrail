@@ -1,9 +1,13 @@
 import { Request, Response } from 'express';
 import { StatusCodes } from 'http-status-codes';
 import { CustomerService } from '../services/customer.service';
+import { OffboardingService } from '../offboarding/offboarding.service';
 
 export class CustomerController {
-  constructor(private customerService: CustomerService) {}
+  constructor(
+    private customerService: CustomerService,
+    private offboardingService?: OffboardingService
+  ) {}
 
   /**
    * List all customers
@@ -22,6 +26,7 @@ export class CustomerController {
 
   /**
    * Get offboarding preview for a customer
+   * Uses new comprehensive offboarding service if available, falls back to old service
    */
   getOffboardingPreview = async (req: Request, res: Response): Promise<void> => {
     try {
@@ -32,8 +37,15 @@ export class CustomerController {
         return;
       }
 
-      const preview = await this.customerService.getOffboardingPreview(chatId);
-      res.json(preview);
+      if (this.offboardingService) {
+        // Use new comprehensive service
+        const preview = await this.offboardingService.previewBusinessOffboarding(chatId);
+        res.json(preview);
+      } else {
+        // Fallback to old service (backward compatibility)
+        const preview = await this.customerService.getOffboardingPreview(chatId);
+        res.json(preview);
+      }
     } catch (error) {
       console.error('Error getting offboarding preview:', error);
       res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
@@ -44,6 +56,7 @@ export class CustomerController {
 
   /**
    * Offboard a customer (delete all their data)
+   * Uses new comprehensive offboarding service if available, falls back to old service
    */
   offboardCustomer = async (req: Request, res: Response): Promise<void> => {
     try {
@@ -54,13 +67,26 @@ export class CustomerController {
         return;
       }
 
-      const result = await this.customerService.offboardCustomer(chatId);
-      res.json({
-        success: true,
-        chatId,
-        deleted: result.deleted,
-        message: `Customer ${chatId} has been completely removed from the system`,
-      });
+      if (this.offboardingService) {
+        // Use new comprehensive service
+        const report = await this.offboardingService.offboardBusiness(chatId);
+        res.json({
+          success: true,
+          chatId,
+          deleted: report.firestoreDocs + report.storageFiles,
+          report,
+          message: `Customer ${chatId} has been completely removed from the system`,
+        });
+      } else {
+        // Fallback to old service (backward compatibility)
+        const result = await this.customerService.offboardCustomer(chatId);
+        res.json({
+          success: true,
+          chatId,
+          deleted: result.deleted,
+          message: `Customer ${chatId} has been completely removed from the system`,
+        });
+      }
     } catch (error) {
       console.error('Error offboarding customer:', error);
       res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
