@@ -401,7 +401,7 @@ offboard-business:
 		echo ""; \
 		exit 1; \
 	fi
-	@cd services/worker && npx ts-node scripts/offboard.ts --chat-id $(CHAT_ID)
+	@cd tools/admin && npx ts-node src/offboarding/offboarding.cli.ts --chat-id $(CHAT_ID)
 
 offboard-user:
 	@if [ -z "$(USER_ID)" ]; then \
@@ -413,4 +413,4 @@ offboard-user:
 		echo ""; \
 		exit 1; \
 	fi
-	@cd services/worker && npx ts-node scripts/offboard.ts --user-id $(USER_ID)
+	@cd tools/admin && npx ts-node src/offboarding/offboarding.cli.ts --user-id $(USER_ID)

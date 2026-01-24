@@ -27,11 +27,13 @@ import { StorageService } from './src/services/storage.service';
 import { HealthService } from './src/services/health.service';
 import { CustomerService } from './src/services/customer.service';
 import { InviteCodeService } from './src/services/invite-code.service';
+import { OffboardingService } from './src/offboarding/offboarding.service';
 import { FirestoreController } from './src/controllers/firestore.controller';
 import { StorageController } from './src/controllers/storage.controller';
 import { HealthController } from './src/controllers/health.controller';
 import { CustomerController } from './src/controllers/customer.controller';
 import { InviteCodeController } from './src/controllers/invite-code.controller';
+import { OffboardingController } from './src/offboarding/offboarding.controller';
 import { requireAuth } from './src/middlewares/auth.middleware';
 import { createRoutes } from './src/routes/index';
 
@@ -48,19 +50,31 @@ const ADMIN_TELEGRAM_USERNAME = process.env.ADMIN_TELEGRAM_USERNAME;
 const firestore = new Firestore();
 const storage = new Storage();
 
+// Get bucket names from environment
+const INVOICES_BUCKET = process.env.STORAGE_BUCKET || 'papertrail-invoice-invoices';
+const GENERATED_INVOICES_BUCKET =
+  process.env.GENERATED_INVOICES_BUCKET || 'papertrail-invoice-generated-invoices';
+
 // Initialize services
 const firestoreService = new FirestoreService(firestore);
 const storageService = new StorageService(storage);
 const healthService = new HealthService(firestoreService, storageService);
 const customerService = new CustomerService(firestore, storage);
 const inviteCodeService = new InviteCodeService(firestore);
+const offboardingService = new OffboardingService(
+  firestore,
+  storage,
+  INVOICES_BUCKET,
+  GENERATED_INVOICES_BUCKET
+);
 
 // Initialize controllers
 const firestoreController = new FirestoreController(firestoreService);
 const storageController = new StorageController(storageService);
 const healthController = new HealthController(healthService);
-const customerController = new CustomerController(customerService);
+const customerController = new CustomerController(customerService, offboardingService);
 const inviteCodeController = new InviteCodeController(inviteCodeService);
+const offboardingController = new OffboardingController(offboardingService);
 
 // Middleware
 app.use(express.json());
@@ -97,7 +111,8 @@ app.use(
     storageController,
     healthController,
     customerController,
-    inviteCodeController
+    inviteCodeController,
+    offboardingController
   )
 );
 
