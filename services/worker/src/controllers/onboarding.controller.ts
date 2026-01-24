@@ -111,7 +111,13 @@ export async function handleLanguageSelection(query: TelegramCallbackQuery): Pro
   const language: Language = query.data === 'onboard_lang_en' ? 'en' : 'he';
 
   await updateOnboardingSession(chatId, { language, step: 'business_name' });
-  await answerCallbackQuery(query.id);
+
+  try {
+    await answerCallbackQuery(query.id);
+  } catch (error) {
+    // Callback might be too old - log but continue with onboarding
+    logger.warn({ chatId, error }, 'Failed to answer callback query, but continuing onboarding');
+  }
 
   const message =
     t(language, 'onboarding.languageSet') +
@@ -145,7 +151,13 @@ export async function handleTaxStatusCallback(query: TelegramCallbackQuery): Pro
       ? t(language, 'taxStatus.exempt')
       : t(language, 'taxStatus.licensed');
 
-  await answerCallbackQuery(query.id);
+  try {
+    await answerCallbackQuery(query.id);
+  } catch (error) {
+    // Callback might be too old - log but continue with onboarding
+    logger.warn({ chatId, error }, 'Failed to answer callback query, but continuing onboarding');
+  }
+
   await handleTaxStatusSelection(chatId, taxStatus, language);
 
   logger.info({ chatId, taxStatus }, 'Tax status selected');
@@ -177,8 +189,13 @@ export async function handleCounterCallback(query: TelegramCallbackQuery): Promi
   const startFromOne = query.data === 'onboard_counter_1';
   log.info({ startFromOne }, 'Determined counter choice');
 
-  await answerCallbackQuery(query.id);
-  log.info('Answered callback query');
+  try {
+    await answerCallbackQuery(query.id);
+    log.info('Answered callback query');
+  } catch (error) {
+    // Callback might be too old - log but continue with onboarding
+    log.warn({ error }, 'Failed to answer callback query, but continuing onboarding');
+  }
 
   await handleCounterSelection(chatId, startFromOne, session.language, session);
   log.info('Counter selection handled');

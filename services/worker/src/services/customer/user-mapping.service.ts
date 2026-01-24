@@ -50,7 +50,7 @@ export async function addUserToCustomer(
       customers: FieldValue.arrayUnion({
         chatId,
         chatTitle,
-        addedAt: FieldValue.serverTimestamp(),
+        addedAt: new Date(),
         ...(addedBy && { addedBy }),
       }),
       lastActive: FieldValue.serverTimestamp(),
@@ -66,7 +66,7 @@ export async function addUserToCustomer(
         {
           chatId,
           chatTitle,
-          addedAt: FieldValue.serverTimestamp(),
+          addedAt: new Date(),
           ...(addedBy && { addedBy }),
         },
       ],
