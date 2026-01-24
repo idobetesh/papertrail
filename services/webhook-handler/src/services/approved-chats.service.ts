@@ -71,22 +71,21 @@ export async function isInOnboarding(chatId: number): Promise<boolean> {
     const doc = await docRef.get();
 
     if (!doc.exists) {
-      // No session
-      onboardingSessionsCache.set(chatId, {
-        inOnboarding: false,
-        expiry: Date.now() + CACHE_TTL_MS,
-      });
+      // No session - don't cache this to avoid stale negatives
+      // (session might be created moments later)
       return false;
     }
 
     const data = doc.data();
     const inOnboarding = data?.active === true;
 
-    // Cache the result
-    onboardingSessionsCache.set(chatId, {
-      inOnboarding,
-      expiry: Date.now() + CACHE_TTL_MS,
-    });
+    // Only cache positive results (active onboarding sessions) - don't cache inactive sessions as they might become active soon
+    if (inOnboarding) {
+      onboardingSessionsCache.set(chatId, {
+        inOnboarding: true,
+        expiry: Date.now() + CACHE_TTL_MS,
+      });
+    }
 
     return inOnboarding;
   } catch (error) {
