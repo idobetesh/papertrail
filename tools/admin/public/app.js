@@ -1649,10 +1649,10 @@ function renderInviteCodes(codes) {
 
     const usageInfo = code.used
       ? `
-        <div style="margin-top: 8px; padding: 8px; background: #f3f4f6; border-radius: 4px; font-size: 13px;">
-          <strong>Used by:</strong> ${escapeHtml(code.usedBy.chatTitle)} (Chat ID: ${code.usedBy.chatId})<br>
-          <strong>Used at:</strong> ${usedAt.toLocaleString()}<br>
-          <strong>Onboarding:</strong> ${onboardingBadge}
+        <div style="margin-top: 12px; padding: 16px; background: var(--bg-secondary); border: 1px solid var(--border); border-radius: 8px; font-size: 13px; line-height: 1.8;">
+          <div><strong style="color: var(--text-primary);">Used by:</strong> <span style="color: var(--text-secondary);">${escapeHtml(code.usedBy.chatTitle)} (Chat ID: ${code.usedBy.chatId})</span></div>
+          <div><strong style="color: var(--text-primary);">Used at:</strong> <span style="color: var(--text-secondary);">${usedAt.toLocaleString()}</span></div>
+          <div style="margin-top: 8px;"><strong style="color: var(--text-primary);">Onboarding:</strong> ${onboardingBadge}</div>
         </div>
       `
       : '';
@@ -1711,21 +1711,19 @@ function renderInviteCodes(codes) {
     return `
       <div class="list-item">
         <div class="list-item-content">
-          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-            <code class="code-inline" style="font-size: 16px; font-weight: 600;">${code.code}</code>
+          <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 12px; gap: 16px;">
+            <code class="code-inline">${code.code}</code>
             ${statusBadge}
           </div>
-          <div style="font-size: 13px; color: #6b7280; line-height: 1.6;">
-            <div><strong>Created by:</strong> ${escapeHtml(code.createdBy.username)} (User ID: ${code.createdBy.userId})</div>
-            <div><strong>Created:</strong> ${createdAt.toLocaleString()}</div>
-            <div><strong>Expires:</strong> ${expiresAt.toLocaleString()}</div>
-            ${code.note ? `<div><strong>Note:</strong> ${escapeHtml(code.note)}</div>` : ''}
+          <div style="font-size: 13px; color: var(--text-secondary); line-height: 1.8;">
+            <div><strong style="color: var(--text-primary);">Created by:</strong> ${escapeHtml(code.createdBy.username)} (User ID: ${code.createdBy.userId})</div>
+            <div><strong style="color: var(--text-primary);">Created:</strong> ${createdAt.toLocaleString()}</div>
+            <div><strong style="color: var(--text-primary);">Expires:</strong> ${expiresAt.toLocaleString()}</div>
+            ${code.note ? `<div><strong style="color: var(--text-primary);">Note:</strong> ${escapeHtml(code.note)}</div>` : ''}
           </div>
           ${usageInfo}
         </div>
-        <div class="list-item-actions">
-          ${actions}
-        </div>
+        ${actions ? `<div class="list-item-actions">${actions}</div>` : ''}
       </div>
     `;
   }).join('');
