@@ -1,5 +1,5 @@
 /**
- * Shared TypeScript types for the Papertrail Invoice Bot
+ * Shared TypeScript types for the Invofox Invoice Bot
  *
  * @deprecated This file is kept for backward compatibility.
  * Types have been split into domain modules for better organization.

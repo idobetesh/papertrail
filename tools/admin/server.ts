@@ -1,5 +1,5 @@
 /**
- * Papertrail Admin Tool
+ * Invofox Admin Tool
  *
  * ⚠️ SECURITY WARNING ⚠️
  * - This is a powerful admin tool with DELETE capabilities
