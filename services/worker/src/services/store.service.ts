@@ -341,7 +341,7 @@ export async function findDuplicateInvoice(
     const snapshot = await db
       .collection(COLLECTION_NAME)
       .where('chatId', '==', chatId)
-      .where('status', '==', 'processed')
+      .where('status', 'in', ['processed', 'processing', 'pending_decision'])
       .where('createdAt', '>=', Timestamp.fromDate(ninetyDaysAgo))
       .get();
 
