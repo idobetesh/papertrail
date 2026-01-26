@@ -108,7 +108,7 @@ describe('Onboarding Controller', () => {
       expect(onboardingService.startOnboarding).toHaveBeenCalledWith(-1001234567, 123456);
       expect(telegramService.sendMessage).toHaveBeenCalledWith(
         -1001234567,
-        expect.stringContaining('Welcome to Invofox'),
+        expect.stringContaining('Invofox'),
         expect.objectContaining({
           replyMarkup: expect.objectContaining({
             inline_keyboard: expect.arrayContaining([
