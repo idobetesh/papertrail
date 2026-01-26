@@ -10,7 +10,7 @@ describe('i18n Service', () => {
     describe('English translations', () => {
       it('should translate onboarding welcome message', () => {
         const result = t('en', 'onboarding.welcome');
-        expect(result).toBe('🚀 Welcome to PaperTrail!');
+        expect(result).toBe('🚀 Welcome to Invofox!');
       });
 
       it('should translate step titles', () => {
@@ -44,7 +44,7 @@ describe('i18n Service', () => {
     describe('Hebrew translations', () => {
       it('should translate onboarding welcome message', () => {
         const result = t('he', 'onboarding.welcome');
-        expect(result).toBe('🚀 ברוכים הבאים ל-PaperTrail!');
+        expect(result).toBe('🚀 ברוכים הבאים ל-Invofox!');
       });
 
       it('should translate step titles', () => {
@@ -131,12 +131,12 @@ describe('i18n Service', () => {
 
       it('should handle empty parameters object', () => {
         const result = t('en', 'onboarding.welcome', {});
-        expect(result).toBe('🚀 Welcome to PaperTrail!');
+        expect(result).toBe('🚀 Welcome to Invofox!');
       });
 
       it('should handle undefined parameters', () => {
         const result = t('en', 'onboarding.welcome');
-        expect(result).toBe('🚀 Welcome to PaperTrail!');
+        expect(result).toBe('🚀 Welcome to Invofox!');
       });
     });
 
@@ -307,8 +307,8 @@ describe('i18n Service', () => {
 
     it('should mix RTL and LTR correctly in Hebrew', () => {
       const result = t('he', 'onboarding.welcome');
-      // Should contain both Hebrew text and English "PaperTrail"
-      expect(result).toContain('PaperTrail');
+      // Should contain both Hebrew text and English "Invofox"
+      expect(result).toContain('Invofox');
       expect(result).toContain('ברוכים הבאים');
     });
   });

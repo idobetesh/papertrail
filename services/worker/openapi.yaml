@@ -1,8 +1,8 @@
 openapi: 3.0.3
 info:
-  title: Papertrail Worker API
+  title: Invofox Worker API
   description: |
-    Invoice processing worker for the Papertrail Invoice Bot.
+    Invoice processing worker for the Invofox Invoice Bot.
 
     This service processes invoices through the pipeline:
     1. Download from Telegram
@@ -26,7 +26,7 @@ info:
     | `pending_decision` | Duplicate detected, awaiting user input |
   version: "1.0.0"
   contact:
-    name: Papertrail Team
+    name: Invofox Team
 
 servers:
   - url: https://worker-XXXXX.us-central1.run.app
