@@ -1,4 +1,4 @@
-# Papertrail Invoice Bot - Makefile
+# Invofox Invoice Bot - Makefile
 # Run 'make help' for available commands
 
 # Configuration (override with environment variables or command line)
@@ -25,7 +25,7 @@ VERSION ?= $(shell git rev-parse --short HEAD 2>/dev/null || echo "latest")
 
 help:
 	@echo ""
-	@echo "Papertrail Invoice Bot - Commands"
+	@echo "Invofox Invoice Bot - Commands"
 	@echo "================================="
 	@echo ""
 	@echo "SETUP"

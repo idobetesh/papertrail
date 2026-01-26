@@ -1,8 +1,8 @@
 openapi: 3.0.3
 info:
-  title: Papertrail Webhook Handler API
+  title: Invofox Webhook Handler API
   description: |
-    Telegram webhook handler for the Papertrail Invoice Bot.
+    Telegram webhook handler for the Invofox Invoice Bot.
 
     This service receives webhook events from Telegram and enqueues processing tasks.
 
@@ -16,7 +16,7 @@ info:
     3. Creates Cloud Tasks job for worker processing
   version: "1.0.0"
   contact:
-    name: Papertrail Team
+    name: Invofox Team
 
 servers:
   - url: https://webhook-handler-XXXXX.us-central1.run.app
