@@ -67,9 +67,9 @@ describe('Duplicate Detection - ChatId Scoping', () => {
 
     await findDuplicateInvoice(chatId, extraction, 'current_job_id');
 
-    // Verify the query includes chatId filter
+    // Verify the query includes telegramChatId filter
     expect(mockCollection).toHaveBeenCalledWith('invoice_jobs');
-    expect(mockWhere).toHaveBeenCalledWith('chatId', '==', chatId);
+    expect(mockWhere).toHaveBeenCalledWith('telegramChatId', '==', chatId);
     expect(mockWhere).toHaveBeenCalledWith('status', 'in', [
       'processed',
       'processing',
@@ -155,8 +155,8 @@ describe('Duplicate Detection - ChatId Scoping', () => {
 
     await findDuplicateInvoice(444444, extraction, 'test_job');
 
-    // Verify chatId is used in query
-    expect(mockWhere).toHaveBeenCalledWith('chatId', '==', 444444);
+    // Verify telegramChatId is used in query
+    expect(mockWhere).toHaveBeenCalledWith('telegramChatId', '==', 444444);
   });
 
   it('should handle multiple duplicates within same chatId', async () => {
