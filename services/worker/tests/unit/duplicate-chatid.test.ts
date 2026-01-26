@@ -70,7 +70,11 @@ describe('Duplicate Detection - ChatId Scoping', () => {
     // Verify the query includes chatId filter
     expect(mockCollection).toHaveBeenCalledWith('invoice_jobs');
     expect(mockWhere).toHaveBeenCalledWith('chatId', '==', chatId);
-    expect(mockWhere).toHaveBeenCalledWith('status', '==', 'processed');
+    expect(mockWhere).toHaveBeenCalledWith('status', 'in', [
+      'processed',
+      'processing',
+      'pending_decision',
+    ]);
     // Verify createdAt filter uses the mocked timestamp
     expect(mockWhere).toHaveBeenCalledWith('createdAt', '>=', mockTimestamp);
   });
