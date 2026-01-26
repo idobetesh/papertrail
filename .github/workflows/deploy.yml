@@ -80,11 +80,14 @@ jobs:
       id-token: write
 
     steps:
+      - uses: actions/checkout@v6
+
       - name: Authenticate to Google Cloud
         uses: google-github-actions/auth@v2
         with:
           workload_identity_provider: ${{ secrets.WIF_PROVIDER }}
           service_account: ${{ secrets.WIF_SERVICE_ACCOUNT }}
+          create_credentials_file: false
 
       - name: Set up Cloud SDK
         uses: google-github-actions/setup-gcloud@v2
