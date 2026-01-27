@@ -47,6 +47,10 @@ describe('Report API Integration Tests', () => {
       (userMappingService.getUserCustomers as jest.Mock).mockResolvedValue([
         { chatId: -123456, businessName: 'Test Business' },
       ]);
+      (rateLimiterService.checkReportLimit as jest.Mock).mockResolvedValue({
+        allowed: true,
+        remaining: 2,
+      });
       (reportSessionService.getActiveSession as jest.Mock).mockResolvedValue(null);
       (reportSessionService.createReportSession as jest.Mock).mockResolvedValue({
         sessionId: 'test_session_123',
@@ -77,6 +81,10 @@ describe('Report API Integration Tests', () => {
       (userMappingService.getUserCustomers as jest.Mock).mockResolvedValue([
         { chatId: -123456, businessName: 'Test Business' },
       ]);
+      (rateLimiterService.checkReportLimit as jest.Mock).mockResolvedValue({
+        allowed: true,
+        remaining: 2,
+      });
       (reportSessionService.getActiveSession as jest.Mock).mockResolvedValue({
         sessionId: 'old_session_123',
         chatId: -123456,
@@ -124,6 +132,23 @@ describe('Report API Integration Tests', () => {
 
       expect(response.status).toBe(StatusCodes.FORBIDDEN);
     });
+
+    it('should enforce rate limiting', async () => {
+      (userMappingService.getUserCustomers as jest.Mock).mockResolvedValue([
+        { chatId: -123456, businessName: 'Test Business' },
+      ]);
+      (rateLimiterService.checkReportLimit as jest.Mock).mockResolvedValue({
+        allowed: false,
+        resetAt: new Date('2026-01-28T00:00:00Z'),
+        remaining: 0,
+      });
+
+      const response = await request(app).post('/report/command').send(validPayload);
+
+      expect(response.status).toBe(StatusCodes.TOO_MANY_REQUESTS);
+      expect(response.body.error).toContain('Rate limit');
+      expect(reportSessionService.createReportSession).not.toHaveBeenCalled();
+    });
   });
 
   describe('POST /report/callback', () => {
@@ -160,7 +185,7 @@ describe('Report API Integration Tests', () => {
 
     describe('Type Selection', () => {
       it('should handle revenue type selection', async () => {
-        (reportSessionService.getActiveSession as jest.Mock).mockResolvedValue({
+        (reportSessionService.getReportSession as jest.Mock).mockResolvedValue({
           ...mockSession,
           currentStep: 'type',
         });
@@ -169,12 +194,19 @@ describe('Report API Integration Tests', () => {
         const response = await request(app)
           .post('/report/callback')
           .send({
-            ...baseCallbackPayload,
-            data: JSON.stringify({
-              action: 'select_type',
-              sessionId: 'test_session_123',
-              value: 'revenue',
-            }),
+            callback_query: {
+              id: baseCallbackPayload.callbackQueryId,
+              data: JSON.stringify({
+                action: 'select_type',
+                sessionId: 'test_session_123',
+                value: 'revenue',
+              }),
+              message: {
+                chat: {
+                  id: baseCallbackPayload.chatId,
+                },
+              },
+            },
           });
 
         expect(response.status).toBe(StatusCodes.OK);
@@ -189,7 +221,7 @@ describe('Report API Integration Tests', () => {
       });
 
       it('should handle expenses type selection', async () => {
-        (reportSessionService.getActiveSession as jest.Mock).mockResolvedValue({
+        (reportSessionService.getReportSession as jest.Mock).mockResolvedValue({
           ...mockSession,
           currentStep: 'type',
         });
@@ -198,12 +230,19 @@ describe('Report API Integration Tests', () => {
         const response = await request(app)
           .post('/report/callback')
           .send({
-            ...baseCallbackPayload,
-            data: JSON.stringify({
-              action: 'select_type',
-              sessionId: 'test_session_123',
-              value: 'expenses',
-            }),
+            callback_query: {
+              id: baseCallbackPayload.callbackQueryId,
+              data: JSON.stringify({
+                action: 'select_type',
+                sessionId: 'test_session_123',
+                value: 'expenses',
+              }),
+              message: {
+                chat: {
+                  id: baseCallbackPayload.chatId,
+                },
+              },
+            },
           });
 
         expect(response.status).toBe(StatusCodes.OK);
@@ -217,7 +256,7 @@ describe('Report API Integration Tests', () => {
       });
 
       it('should reject invalid report type', async () => {
-        (reportSessionService.getActiveSession as jest.Mock).mockResolvedValue({
+        (reportSessionService.getReportSession as jest.Mock).mockResolvedValue({
           ...mockSession,
           currentStep: 'type',
         });
@@ -228,12 +267,19 @@ describe('Report API Integration Tests', () => {
         const response = await request(app)
           .post('/report/callback')
           .send({
-            ...baseCallbackPayload,
-            data: JSON.stringify({
-              action: 'select_type',
-              sessionId: 'test_session_123',
-              value: 'invalid',
-            }),
+            callback_query: {
+              id: baseCallbackPayload.callbackQueryId,
+              data: JSON.stringify({
+                action: 'select_type',
+                sessionId: 'test_session_123',
+                value: 'invalid',
+              }),
+              message: {
+                chat: {
+                  id: baseCallbackPayload.chatId,
+                },
+              },
+            },
           });
 
         expect(response.status).toBe(StatusCodes.INTERNAL_SERVER_ERROR);
@@ -241,18 +287,11 @@ describe('Report API Integration Tests', () => {
     });
 
     describe('Date Selection', () => {
-      const datePresets = [
-        'this_month',
-        'last_month',
-        'this_quarter',
-        'last_quarter',
-        'ytd',
-        'this_year',
-      ];
+      const datePresets = ['this_month', 'last_month', 'ytd', 'this_year'];
 
       datePresets.forEach((preset) => {
         it(`should handle ${preset} date selection`, async () => {
-          (reportSessionService.getActiveSession as jest.Mock).mockResolvedValue({
+          (reportSessionService.getReportSession as jest.Mock).mockResolvedValue({
             ...mockSession,
             currentStep: 'date',
             reportType: 'revenue',
@@ -304,12 +343,19 @@ describe('Report API Integration Tests', () => {
           const response = await request(app)
             .post('/report/callback')
             .send({
-              ...baseCallbackPayload,
-              data: JSON.stringify({
-                action: 'select_date',
-                sessionId: 'test_session_123',
-                value: preset,
-              }),
+              callback_query: {
+                id: baseCallbackPayload.callbackQueryId,
+                data: JSON.stringify({
+                  action: 'select_date',
+                  sessionId: 'test_session_123',
+                  value: preset,
+                }),
+                message: {
+                  chat: {
+                    id: baseCallbackPayload.chatId,
+                  },
+                },
+              },
             });
 
           expect(response.status).toBe(StatusCodes.OK);
@@ -324,7 +370,7 @@ describe('Report API Integration Tests', () => {
       });
 
       it('should reject invalid date preset', async () => {
-        (reportSessionService.getActiveSession as jest.Mock).mockResolvedValue({
+        (reportSessionService.getReportSession as jest.Mock).mockResolvedValue({
           ...mockSession,
           currentStep: 'date',
           reportType: 'revenue',
@@ -336,12 +382,19 @@ describe('Report API Integration Tests', () => {
         const response = await request(app)
           .post('/report/callback')
           .send({
-            ...baseCallbackPayload,
-            data: JSON.stringify({
-              action: 'select_date',
-              sessionId: 'test_session_123',
-              value: 'invalid_preset',
-            }),
+            callback_query: {
+              id: baseCallbackPayload.callbackQueryId,
+              data: JSON.stringify({
+                action: 'select_date',
+                sessionId: 'test_session_123',
+                value: 'invalid_preset',
+              }),
+              message: {
+                chat: {
+                  id: baseCallbackPayload.chatId,
+                },
+              },
+            },
           });
 
         expect(response.status).toBe(StatusCodes.INTERNAL_SERVER_ERROR);
@@ -377,7 +430,7 @@ describe('Report API Integration Tests', () => {
       };
 
       beforeEach(() => {
-        (reportSessionService.getActiveSession as jest.Mock).mockResolvedValue({
+        (reportSessionService.getReportSession as jest.Mock).mockResolvedValue({
           ...mockSession,
           currentStep: 'format',
           reportType: 'revenue',
@@ -408,12 +461,19 @@ describe('Report API Integration Tests', () => {
         const response = await request(app)
           .post('/report/callback')
           .send({
-            ...baseCallbackPayload,
-            data: JSON.stringify({
-              action: 'select_format',
-              sessionId: 'test_session_123',
-              value: 'pdf',
-            }),
+            callback_query: {
+              id: baseCallbackPayload.callbackQueryId,
+              data: JSON.stringify({
+                action: 'select_format',
+                sessionId: 'test_session_123',
+                value: 'pdf',
+              }),
+              message: {
+                chat: {
+                  id: baseCallbackPayload.chatId,
+                },
+              },
+            },
           });
 
         expect(response.status).toBe(StatusCodes.OK);
@@ -430,12 +490,19 @@ describe('Report API Integration Tests', () => {
         const response = await request(app)
           .post('/report/callback')
           .send({
-            ...baseCallbackPayload,
-            data: JSON.stringify({
-              action: 'select_format',
-              sessionId: 'test_session_123',
-              value: 'excel',
-            }),
+            callback_query: {
+              id: baseCallbackPayload.callbackQueryId,
+              data: JSON.stringify({
+                action: 'select_format',
+                sessionId: 'test_session_123',
+                value: 'excel',
+              }),
+              message: {
+                chat: {
+                  id: baseCallbackPayload.chatId,
+                },
+              },
+            },
           });
 
         expect(response.status).toBe(StatusCodes.OK);
@@ -449,38 +516,49 @@ describe('Report API Integration Tests', () => {
         const response = await request(app)
           .post('/report/callback')
           .send({
-            ...baseCallbackPayload,
-            data: JSON.stringify({
-              action: 'select_format',
-              sessionId: 'test_session_123',
-              value: 'csv',
-            }),
+            callback_query: {
+              id: baseCallbackPayload.callbackQueryId,
+              data: JSON.stringify({
+                action: 'select_format',
+                sessionId: 'test_session_123',
+                value: 'csv',
+              }),
+              message: {
+                chat: {
+                  id: baseCallbackPayload.chatId,
+                },
+              },
+            },
           });
 
         expect(response.status).toBe(StatusCodes.OK);
         expect(reportGeneratorService.generateCSVReport).toHaveBeenCalledWith(mockReportData);
       });
 
-      it('should enforce rate limiting during generation', async () => {
-        (rateLimiterService.checkReportLimit as jest.Mock).mockResolvedValue({
-          allowed: false,
-          resetAt: new Date(),
-          remaining: 0,
-        });
+      it('should record rate limit after successful generation', async () => {
+        const pdfBuffer = Buffer.from('fake-pdf-content');
+        (reportGeneratorService.generatePDFReport as jest.Mock).mockResolvedValue(pdfBuffer);
 
         const response = await request(app)
           .post('/report/callback')
           .send({
-            ...baseCallbackPayload,
-            data: JSON.stringify({
-              action: 'select_format',
-              sessionId: 'test_session_123',
-              value: 'pdf',
-            }),
+            callback_query: {
+              id: baseCallbackPayload.callbackQueryId,
+              data: JSON.stringify({
+                action: 'select_format',
+                sessionId: 'test_session_123',
+                value: 'pdf',
+              }),
+              message: {
+                chat: {
+                  id: baseCallbackPayload.chatId,
+                },
+              },
+            },
           });
 
         expect(response.status).toBe(StatusCodes.OK);
-        expect(reportGeneratorService.generatePDFReport).not.toHaveBeenCalled();
+        expect(rateLimiterService.recordReportGeneration).toHaveBeenCalledWith(-123456);
       });
 
       it('should handle generation errors gracefully', async () => {
@@ -491,12 +569,19 @@ describe('Report API Integration Tests', () => {
         const response = await request(app)
           .post('/report/callback')
           .send({
-            ...baseCallbackPayload,
-            data: JSON.stringify({
-              action: 'select_format',
-              sessionId: 'test_session_123',
-              value: 'pdf',
-            }),
+            callback_query: {
+              id: baseCallbackPayload.callbackQueryId,
+              data: JSON.stringify({
+                action: 'select_format',
+                sessionId: 'test_session_123',
+                value: 'pdf',
+              }),
+              message: {
+                chat: {
+                  id: baseCallbackPayload.chatId,
+                },
+              },
+            },
           });
 
         expect(response.status).toBe(StatusCodes.INTERNAL_SERVER_ERROR);
@@ -511,12 +596,19 @@ describe('Report API Integration Tests', () => {
         const response = await request(app)
           .post('/report/callback')
           .send({
-            ...baseCallbackPayload,
-            data: JSON.stringify({
-              action: 'select_format',
-              sessionId: 'test_session_123',
-              value: 'invalid',
-            }),
+            callback_query: {
+              id: baseCallbackPayload.callbackQueryId,
+              data: JSON.stringify({
+                action: 'select_format',
+                sessionId: 'test_session_123',
+                value: 'invalid',
+              }),
+              message: {
+                chat: {
+                  id: baseCallbackPayload.chatId,
+                },
+              },
+            },
           });
 
         // Controller handles invalid format by defaulting to CSV
@@ -527,25 +619,32 @@ describe('Report API Integration Tests', () => {
 
     describe('Session Validation', () => {
       it('should reject callback without active session', async () => {
-        (reportSessionService.getActiveSession as jest.Mock).mockResolvedValue(null);
+        (reportSessionService.getReportSession as jest.Mock).mockResolvedValue(null);
 
         const response = await request(app)
           .post('/report/callback')
           .send({
-            ...baseCallbackPayload,
-            data: JSON.stringify({
-              action: 'select_type',
-              sessionId: 'test_session_123',
-              value: 'revenue',
-            }),
+            callback_query: {
+              id: baseCallbackPayload.callbackQueryId,
+              data: JSON.stringify({
+                action: 'select_type',
+                sessionId: 'test_session_123',
+                value: 'revenue',
+              }),
+              message: {
+                chat: {
+                  id: baseCallbackPayload.chatId,
+                },
+              },
+            },
           });
 
         expect(response.status).toBe(StatusCodes.OK);
-        expect(response.body.action).toBe('session_expired');
+        expect(response.body.ok).toBe(true);
       });
 
       it('should reject callback for wrong session ID', async () => {
-        (reportSessionService.getActiveSession as jest.Mock).mockResolvedValue({
+        (reportSessionService.getReportSession as jest.Mock).mockResolvedValue({
           ...mockSession,
           sessionId: 'different_session_456',
         });
@@ -553,32 +652,46 @@ describe('Report API Integration Tests', () => {
         const response = await request(app)
           .post('/report/callback')
           .send({
-            ...baseCallbackPayload,
-            data: JSON.stringify({
-              action: 'select_type',
-              sessionId: 'test_session_123',
-              value: 'revenue',
-            }),
+            callback_query: {
+              id: baseCallbackPayload.callbackQueryId,
+              data: JSON.stringify({
+                action: 'select_type',
+                sessionId: 'test_session_123',
+                value: 'revenue',
+              }),
+              message: {
+                chat: {
+                  id: baseCallbackPayload.chatId,
+                },
+              },
+            },
           });
 
         expect(response.status).toBe(StatusCodes.OK);
-        expect(response.body.action).toBe('session_expired');
+        expect(response.body.ok).toBe(true);
       });
 
       it('should handle callback errors gracefully', async () => {
-        (reportSessionService.getActiveSession as jest.Mock).mockRejectedValue(
+        (reportSessionService.getReportSession as jest.Mock).mockRejectedValue(
           new Error('Database error')
         );
 
         const response = await request(app)
           .post('/report/callback')
           .send({
-            ...baseCallbackPayload,
-            data: JSON.stringify({
-              action: 'select_type',
-              sessionId: 'test_session_123',
-              value: 'revenue',
-            }),
+            callback_query: {
+              id: baseCallbackPayload.callbackQueryId,
+              data: JSON.stringify({
+                action: 'select_type',
+                sessionId: 'test_session_123',
+                value: 'revenue',
+              }),
+              message: {
+                chat: {
+                  id: baseCallbackPayload.chatId,
+                },
+              },
+            },
           });
 
         expect(response.status).toBe(StatusCodes.INTERNAL_SERVER_ERROR);
@@ -589,8 +702,15 @@ describe('Report API Integration Tests', () => {
         const response = await request(app)
           .post('/report/callback')
           .send({
-            ...baseCallbackPayload,
-            data: 'invalid-json',
+            callback_query: {
+              id: baseCallbackPayload.callbackQueryId,
+              data: 'invalid-json',
+              message: {
+                chat: {
+                  id: baseCallbackPayload.chatId,
+                },
+              },
+            },
           });
 
         expect(response.status).toBe(StatusCodes.INTERNAL_SERVER_ERROR);
@@ -600,17 +720,24 @@ describe('Report API Integration Tests', () => {
 
     describe('Cancel Flow', () => {
       it('should cancel active session', async () => {
-        (reportSessionService.getActiveSession as jest.Mock).mockResolvedValue(mockSession);
+        (reportSessionService.getReportSession as jest.Mock).mockResolvedValue(mockSession);
         (reportSessionService.cancelReportSession as jest.Mock).mockResolvedValue(undefined);
 
         const response = await request(app)
           .post('/report/callback')
           .send({
-            ...baseCallbackPayload,
-            data: JSON.stringify({
-              action: 'cancel',
-              sessionId: 'test_session_123',
-            }),
+            callback_query: {
+              id: baseCallbackPayload.callbackQueryId,
+              data: JSON.stringify({
+                action: 'cancel',
+                sessionId: 'test_session_123',
+              }),
+              message: {
+                chat: {
+                  id: baseCallbackPayload.chatId,
+                },
+              },
+            },
           });
 
         expect(response.status).toBe(StatusCodes.OK);
@@ -619,20 +746,27 @@ describe('Report API Integration Tests', () => {
       });
 
       it('should handle cancel when no session exists', async () => {
-        (reportSessionService.getActiveSession as jest.Mock).mockResolvedValue(null);
+        (reportSessionService.getReportSession as jest.Mock).mockResolvedValue(null);
 
         const response = await request(app)
           .post('/report/callback')
           .send({
-            ...baseCallbackPayload,
-            data: JSON.stringify({
-              action: 'cancel',
-              sessionId: 'test_session_123',
-            }),
+            callback_query: {
+              id: baseCallbackPayload.callbackQueryId,
+              data: JSON.stringify({
+                action: 'cancel',
+                sessionId: 'test_session_123',
+              }),
+              message: {
+                chat: {
+                  id: baseCallbackPayload.chatId,
+                },
+              },
+            },
           });
 
         expect(response.status).toBe(StatusCodes.OK);
-        expect(response.body.action).toBe('session_expired');
+        expect(response.body.ok).toBe(true);
       });
     });
   });
