@@ -10,7 +10,7 @@ import * as telegramService from '../telegram.service';
  * Send type selection message (Revenue or Expenses)
  */
 export async function sendTypeSelectionMessage(chatId: number, sessionId: string): Promise<void> {
-  const message = '📊 איזה סוג דוח תרצה ליצור?';
+  const message = '\u200F📊 איזה סוג דוח תרצה ליצור?';
   const keyboard = {
     inline_keyboard: [
       [
@@ -52,7 +52,7 @@ export async function sendTypeSelectionMessage(chatId: number, sessionId: string
  * Send date range selection message
  */
 export async function sendDateSelectionMessage(chatId: number, sessionId: string): Promise<void> {
-  const message = '📅 באיזו תקופה תרצה לראות את הדוח?';
+  const message = '\u200F📅 באיזו תקופה תרצה לראות את הדוח?';
   const keyboard = {
     inline_keyboard: [
       [
@@ -116,7 +116,7 @@ export async function sendFormatSelectionMessage(
   sessionId: string,
   invoiceCount: number
 ): Promise<void> {
-  const message = `✅ מצאנו ${invoiceCount} חשבוניות!\n\n📄 באיזה פורמט תרצה את הדוח?`;
+  const message = `\u200F✅ מצאנו ${invoiceCount} חשבוניות!\n\n\u200F📄 באיזה פורמט תרצה את הדוח?`;
   const keyboard = {
     inline_keyboard: [
       [
@@ -190,12 +190,12 @@ export async function sendReportGeneratedMessage(
   const reportTypeName = reportType === 'revenue' ? 'הכנסות' : 'הוצאות';
   const dateLabel = getDateLabel(datePreset);
   const caption =
-    `✅ דוח ${reportTypeName} נוצר!\n\n` +
-    `📊 תקופה: ${dateLabel}\n` +
-    `📅 תאריכים: ${dateRange.start} עד ${dateRange.end}\n` +
-    `💰 סה"כ: ₪${metrics.totalRevenue.toLocaleString('he-IL')}\n` +
-    `📄 חשבוניות: ${metrics.invoiceCount}\n` +
-    `📈 ממוצע: ₪${Math.round(metrics.avgInvoice).toLocaleString('he-IL')}\n\n` +
+    `\u200F✅ דוח ${reportTypeName} נוצר!\n\n` +
+    `\u200F📊 תקופה: ${dateLabel}\n` +
+    `\u200F📅 תאריכים: ${dateRange.start} עד ${dateRange.end}\n` +
+    `\u200F💰 סה"כ: ₪${metrics.totalRevenue.toLocaleString('he-IL')}\n` +
+    `\u200F📄 חשבוניות: ${metrics.invoiceCount}\n` +
+    `\u200F📈 ממוצע: ₪${Math.round(metrics.avgInvoice).toLocaleString('he-IL')}\n\n` +
     `רוצה עוד דוח? שלח /report`;
 
   await telegramService.sendDocument(chatId, fileBuffer, filename, {
@@ -214,10 +214,10 @@ export async function sendNoInvoicesMessage(
 ): Promise<void> {
   const dateLabel = getDateLabel(datePreset);
   const message =
-    `📊 אין חשבוניות לתקופה הנבחרת\n\n` +
+    `\u200F📊 אין חשבוניות לתקופה הנבחרת\n\n` +
     `תקופה: ${dateLabel}\n` +
     `תאריכים: ${dateRange.start} עד ${dateRange.end}\n\n` +
-    `💡 העלה חשבוניות לצ'אט זה כדי שנוכל ליצור דוחות!\n\n` +
+    `\u200F💡 העלה חשבוניות לצ'אט זה כדי שנוכל ליצור דוחות!\n\n` +
     `רוצה לנסות תקופה אחרת? שלח /report`;
 
   await telegramService.sendMessage(chatId, message);

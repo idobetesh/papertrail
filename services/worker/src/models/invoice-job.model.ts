@@ -37,7 +37,7 @@ export const InvoiceJobSchema = z.object({
   // Extracted data
   vendorName: z.string().optional(), // ⚠️ DIFFERENT from generated_invoices (which uses customerName)!
   totalAmount: z.number().optional(), // ⚠️ DIFFERENT from generated_invoices (which uses amount)!
-  vatAmount: z.number().optional(),
+  vatAmount: z.number().nullable().optional(),
   currency: z.string().default('ILS'),
   invoiceNumber: z.string().nullable().optional(),
   invoiceDate: z.string().optional(), // ⚠️ Format is "2026-01-18" NOT "18/01/2026"!
