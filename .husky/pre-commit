@@ -1,1 +1,18 @@
 npx lint-staged
+
+# Check if migration was added/modified without updating MIGRATIONS.md
+MIGRATION_FILES=$(git diff --cached --name-only --diff-filter=AM | grep "tools/migrations/.*\.ts$" || true)
+if [ -n "$MIGRATION_FILES" ]; then
+  MIGRATIONS_MD_CHANGED=$(git diff --cached --name-only | grep "tools/migrations/MIGRATIONS.md" || true)
+  if [ -z "$MIGRATIONS_MD_CHANGED" ]; then
+    echo ""
+    echo "❌ Error: Migration file changed but MIGRATIONS.md not updated"
+    echo ""
+    echo "Changed migrations:"
+    echo "$MIGRATION_FILES" | sed 's/^/  - /'
+    echo ""
+    echo "Please update tools/migrations/MIGRATIONS.md"
+    echo ""
+    exit 1
+  fi
+fi

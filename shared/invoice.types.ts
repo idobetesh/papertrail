@@ -46,12 +46,14 @@ export interface InvoiceSession {
  * Document ID: invoice number (e.g., "20261")
  */
 export interface GeneratedInvoice {
+  chatId: number; // Chat ID for querying invoices by user
   invoiceNumber: string;
   documentType: InvoiceDocumentType;
   customerName: string;
   customerTaxId?: string;
   description: string;
   amount: number;
+  currency: string; // Currency code (e.g., "ILS", "USD")
   paymentMethod: PaymentMethod;
   date: string; // DD/MM/YYYY format
   generatedAt: Date | { toMillis: () => number };

@@ -202,12 +202,14 @@ async function saveInvoiceRecord(
   const docRef = db.collection(GENERATED_INVOICES_COLLECTION).doc(docId);
 
   const record: GeneratedInvoice = {
+    chatId,
     invoiceNumber,
     documentType: data.documentType,
     customerName: data.customerName,
     ...(data.customerTaxId !== undefined && { customerTaxId: data.customerTaxId }),
     description: data.description,
     amount: data.amount,
+    currency: 'ILS',
     paymentMethod: data.paymentMethod,
     date: formatDateDisplay(data.date),
     generatedAt: FieldValue.serverTimestamp() as unknown as Timestamp,

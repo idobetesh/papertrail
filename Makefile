@@ -17,7 +17,7 @@ VERSION ?= $(shell git rev-parse --short HEAD 2>/dev/null || echo "latest")
         set-webhook get-webhook-info dev-webhook dev-worker test-worker \
         logs-webhook logs-worker clean lint lint-fix test test-unit \
         version revisions rollback-webhook rollback-worker \
-        sample-invoice admin-dev merge-dependabot offboard-business offboard-user
+        sample-invoice admin-dev merge-dependabot offboard-business offboard-user migrate
 
 # =============================================================================
 # Help
@@ -94,6 +94,10 @@ help:
 	@echo "  make offboard-business CHAT_ID=xxx   Remove business (keeps users with other businesses)"
 	@echo "  make offboard-user USER_ID=xxx       Remove user completely (GDPR Right to Erasure)"
 	@echo ""
+	@echo "DATA MIGRATIONS"
+	@echo "  make migrate NAME=<filename>         Run a specific migration from tools/migrations/"
+	@echo "  Example: make migrate NAME=2026-01-28-add-chatid-currency-to-invoices"
+	@echo ""
 	@echo "Current project: $(PROJECT_ID)"
 	@echo "Region: $(REGION)"
 	@echo ""
@@ -114,6 +118,9 @@ install:
 	@echo ""
 	@echo "Installing admin tool dependencies..."
 	cd tools/admin && npm install
+	@echo ""
+	@echo "Installing migration tool dependencies..."
+	cd tools/migrations && npm install
 	@echo ""
 	@echo "All dependencies installed!"
 	@echo "Husky git hooks configured."
@@ -370,6 +377,7 @@ clean:
 	rm -rf services/webhook-handler/node_modules
 	rm -rf services/worker/node_modules
 	rm -rf tools/admin/node_modules
+	rm -rf tools/migrations/node_modules
 	@echo "Clean complete!"
 
 # =============================================================================
@@ -414,3 +422,41 @@ offboard-user:
 		exit 1; \
 	fi
 	@cd tools/admin && npx ts-node src/offboarding/offboarding.cli.ts --user-id $(USER_ID)
+
+# =============================================================================
+# Data Migrations
+# =============================================================================
+
+migrate:
+	@if [ -z "$(NAME)" ]; then \
+		echo ""; \
+		echo "❌ Error: NAME is required"; \
+		echo ""; \
+		echo "Usage: make migrate NAME=<migration-filename>"; \
+		echo ""; \
+		echo "Available migrations:"; \
+		ls -1 tools/migrations/*.ts 2>/dev/null | sed 's/.*\//  - /' | sed 's/\.ts$$//' || echo "  (none found)"; \
+		echo ""; \
+		echo "Example: make migrate NAME=2026-01-28-add-chatid-currency-to-invoices"; \
+		echo ""; \
+		exit 1; \
+	fi
+	@if [ ! -f "tools/migrations/$(NAME).ts" ]; then \
+		echo ""; \
+		echo "❌ Error: Migration file not found: tools/migrations/$(NAME).ts"; \
+		echo ""; \
+		echo "Available migrations:"; \
+		ls -1 tools/migrations/*.ts 2>/dev/null | sed 's/.*\//  - /' | sed 's/\.ts$$//' || echo "  (none found)"; \
+		echo ""; \
+		exit 1; \
+	fi
+	@if [ ! -d "tools/migrations/node_modules" ]; then \
+		echo "Installing migration dependencies..."; \
+		cd tools/migrations && npm install; \
+		echo ""; \
+	fi
+	@echo "Running migration: $(NAME)"
+	@echo ""
+	@cd tools/migrations && npx ts-node $(NAME).ts
+	@echo ""
+	@echo "✅ Migration complete! Remember to update tools/migrations/MIGRATIONS.md"
