@@ -1,0 +1,19 @@
+{
+  "name": "@invofox/migrations",
+  "version": "1.0.0",
+  "description": "Data migration scripts for Invofox",
+  "private": true,
+  "author": "Ido Betesh",
+  "scripts": {},
+  "dependencies": {
+    "@google-cloud/firestore": "^7.3.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.10.0",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.3.0"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  }
+}
