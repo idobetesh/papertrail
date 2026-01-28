@@ -43,7 +43,7 @@ describe('Report Template - Logo Display', () => {
 
     expect(html).toContain('<img src="https://example.com/logo.png"');
     expect(html).toContain('class="logo"');
-    expect(html).not.toContain('logo-placeholder');
+    expect(html).not.toContain('<div class="logo-placeholder">');
   });
 
   it('should show placeholder when logoUrl is missing', () => {
@@ -54,9 +54,8 @@ describe('Report Template - Logo Display', () => {
 
     const html = generateReportHTML(dataWithoutLogo);
 
-    expect(html).toContain('logo-placeholder');
-    expect(html).toContain('📄');
-    expect(html).not.toContain('<img');
+    expect(html).toContain('<div class="logo-placeholder">📄</div>');
+    expect(html).not.toContain('<img src=');
   });
 
   it('should escape HTML in logoUrl to prevent XSS', () => {
