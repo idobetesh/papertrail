@@ -19,6 +19,18 @@ const COLLECTION = 'processed_callbacks';
 const TTL_HOURS = 24; // Keep records for 24 hours
 
 /**
+ * NOTE: Firestore TTL policy is configured for automatic cleanup.
+ * Documents are auto-deleted 24 hours after their expiresAt timestamp.
+ *
+ * TTL Config (ACTIVE):
+ * - Field: expiresAt
+ * - Collection: processed_callbacks
+ * - State: ACTIVE
+ *
+ * No manual cleanup needed - Firestore handles it natively at the database level.
+ */
+
+/**
  * Check if a callback has already been processed
  * @param updateId - Telegram update_id
  * @returns true if already processed, false if new
@@ -60,7 +72,7 @@ export async function markCallbackProcessed(updateId: number): Promise<void> {
     await docRef.set({
       updateId,
       processedAt: FieldValue.serverTimestamp(),
-      expiresAt, // For manual cleanup if needed
+      expiresAt, // Firestore TTL will auto-delete when this timestamp passes
     });
 
     log.info('Marked callback as processed');
