@@ -24,6 +24,7 @@ export function extractReportCommandPayload(update: TelegramUpdate): ReportComma
 
   return {
     type: 'command',
+    updateId: update.update_id, // Include for deduplication
     chatId: message.chat.id,
     chatTitle: message.chat.title, // Group/channel title (undefined for private chats)
     messageId: message.message_id,
