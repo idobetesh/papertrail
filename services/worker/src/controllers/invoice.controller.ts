@@ -327,7 +327,12 @@ export async function handleInvoiceCallback(req: Request, res: Response): Promis
           return;
         }
 
-        await telegramService.answerCallbackQuery(payload.callbackQueryId);
+        // Answer callback query with popup feedback (shows generating status)
+        await telegramService.answerCallbackQuery(payload.callbackQueryId, {
+          text: t('he', 'invoice.creating'),
+        });
+
+        // Remove confirmation buttons and show brief confirmation
         await telegramService.editMessageText(
           payload.chatId,
           payload.messageId,
@@ -411,6 +416,22 @@ export async function handleInvoiceCallback(req: Request, res: Response): Promis
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
     const errorStack = error instanceof Error ? error.stack : undefined;
+
+    // These are expected Telegram API errors that don't indicate actual failures
+    const isExpectedTelegramError =
+      errorMessage.includes('query is too old') ||
+      errorMessage.includes('query ID is invalid') ||
+      errorMessage.includes('message is not modified');
+
+    if (isExpectedTelegramError) {
+      log.warn(
+        { error: errorMessage },
+        'Expected Telegram API error (callback likely already handled)'
+      );
+      res.status(StatusCodes.OK).json({ ok: true, warning: 'callback_already_handled' });
+      return;
+    }
+
     log.error({ error: errorMessage, stack: errorStack }, 'Failed to handle invoice callback');
 
     try {

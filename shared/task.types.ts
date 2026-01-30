@@ -50,6 +50,7 @@ export interface InvoiceMessagePayload {
  */
 export interface InvoiceCallbackPayload {
   type: 'callback';
+  updateId?: number; // Telegram update_id for deduplication
   callbackQueryId: string;
   chatId: number;
   messageId: number;

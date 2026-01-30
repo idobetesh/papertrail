@@ -86,6 +86,7 @@ export function extractInvoiceCallbackPayload(
 
   return {
     type: 'callback',
+    updateId: update.update_id,
     callbackQueryId: callback.id,
     chatId: callback.message.chat.id,
     messageId: callback.message.message_id,
