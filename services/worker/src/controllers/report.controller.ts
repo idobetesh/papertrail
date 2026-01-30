@@ -26,12 +26,26 @@ export async function handleReportCommand(req: Request, res: Response): Promise<
   const log = logger.child({
     chatId: payload.chatId,
     userId: payload.userId,
+    updateId: payload.updateId,
     handler: 'handleReportCommand',
   });
 
   log.info('Processing /report command');
 
   try {
+    // 0. Deduplication: Check if this update was already processed
+    if (payload.updateId) {
+      const alreadyProcessed = await reportDedupService.isCallbackProcessed(payload.updateId);
+      if (alreadyProcessed) {
+        log.info('Skipping duplicate /report command');
+        res.status(StatusCodes.OK).json({ ok: true, duplicate: true });
+        return;
+      }
+
+      // Mark as processed IMMEDIATELY to prevent race condition with Telegram retries
+      await reportDedupService.markCallbackProcessed(payload.updateId);
+    }
+
     // 1. Check user access
     const userCustomers = await userMappingService.getUserCustomers(payload.userId);
     const hasAccess = userCustomers.some((c) => c.chatId === payload.chatId);

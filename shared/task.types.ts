@@ -72,6 +72,7 @@ export type InvoiceTaskPayload =
  */
 export interface ReportCommandPayload {
   type: 'command';
+  updateId?: number; // Telegram update_id for deduplication
   chatId: number;
   chatTitle?: string; // Group/channel title (undefined for private chats)
   messageId: number;
