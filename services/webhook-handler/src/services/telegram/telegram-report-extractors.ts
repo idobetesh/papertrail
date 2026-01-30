@@ -45,10 +45,12 @@ export function extractReportCallbackPayload(update: TelegramUpdate): any | null
   }
 
   return {
+    update_id: update.update_id,
     callback_query: {
       id: callback.id,
       data: callback.data,
       message: {
+        message_id: callback.message.message_id,
         chat: {
           id: callback.message.chat.id,
         },
